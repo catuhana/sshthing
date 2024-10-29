@@ -11,9 +11,10 @@ use std::time::{Duration, Instant};
 
 use clap::Parser as _;
 use cli::{HashType, MatchMode, SearchField, SearchIn};
+use rand::SeedableRng as _;
 use rand_chacha::ChaCha8Rng;
 use ssh_key::rand_core::CryptoRngCore;
-use ssh_key::{rand_core::SeedableRng as _, Algorithm, HashAlg, LineEnding, PrivateKey, PublicKey};
+use ssh_key::{Algorithm, HashAlg, LineEnding, PrivateKey, PublicKey};
 
 mod cli;
 
@@ -93,7 +94,7 @@ impl KeyGenerator {
     fn spawn_threads(&mut self, thread_count: usize, stop_flag: &Arc<AtomicBool>) {
         let mut generators = Vec::new();
 
-        for thread_index in 0..thread_count {
+        for _thread_index in 0..thread_count {
             let stop_flag = Arc::clone(stop_flag);
             let keywords = self.keywords.clone();
 
@@ -108,7 +109,6 @@ impl KeyGenerator {
 
             let handle = thread::spawn(move || {
                 Self::generate_keys(
-                    thread_index,
                     &stop_flag,
                     &keywords,
                     &search_in,
@@ -150,7 +150,6 @@ impl KeyGenerator {
     }
 
     fn generate_keys(
-        thread_index: usize,
         stop_flag: &Arc<AtomicBool>,
         keywords: &[String],
         search_in: &SearchIn,
@@ -158,7 +157,7 @@ impl KeyGenerator {
         checked_keys: &AtomicU64,
         found_key: &Arc<Mutex<Option<FoundKey>>>,
     ) {
-        let mut rng = ChaCha8Rng::from_seed([u8::try_from(thread_index).unwrap(); 32]);
+        let mut rng = ChaCha8Rng::from_entropy();
 
         while !stop_flag.load(Ordering::Relaxed) {
             if let Some(key) =
