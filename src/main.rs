@@ -140,14 +140,12 @@ impl KeyGenerator {
                     .map(|g| g.checked_keys.load(Ordering::Relaxed))
                     .sum();
 
-                let elapsed = self.start_time.as_ref().unwrap().elapsed().as_secs_f64();
-                let keys_per_sec = total_keys as f64 / elapsed;
+                let elapsed = self.start_time.as_ref().unwrap().elapsed().as_secs();
+                let keys_per_sec = total_keys / elapsed;
 
                 println!("Checked {total_keys} keys total ({keys_per_sec:.2} keys/sec)",);
                 last_status_print = Instant::now();
             }
-
-            thread::sleep(Duration::from_millis(100));
         }
     }
 
