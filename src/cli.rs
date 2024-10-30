@@ -1,7 +1,7 @@
 #[derive(clap::Parser, Debug)]
 pub struct Cli {
     /// The keywords to search for in SSH fields
-    #[arg(long, short = 'K', required = true)]
+    #[arg(long, short = 'K', value_delimiter = ',', required = true)]
     pub keywords: Vec<String>,
 
     /// Generated SSH fields to search in

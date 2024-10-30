@@ -245,24 +245,69 @@ impl KeyData {
         &self,
         keywords: &[String],
         search_in: &SearchIn,
-        keyword_match_mode: &KeywordsMatchMode,
+        keywords_match_mode: &KeywordsMatchMode,
         search_match_mode: &SearchMatchMode,
     ) -> Option<(Vec<String>, SearchIn)> {
-        // FIXME: Temporarily hard-coded to search for every
-        // word in every field.
-        let searchable_fields = vec![
-            &self.private_openssh,
-            &self.public_openssh,
-            &self.sha256_fingerprint,
-            &self.sha512_fingerprint,
-        ];
+        let fields_to_search = match search_in {
+            SearchIn::All => vec![
+                SearchField::PrivateKey,
+                SearchField::PublicKey,
+                SearchField::Fingerprint(HashType::Sha256),
+                SearchField::Fingerprint(HashType::Sha512),
+            ],
+            SearchIn::Keys => vec![SearchField::PrivateKey, SearchField::PublicKey],
+            SearchIn::Fingerprints => vec![
+                SearchField::Fingerprint(HashType::Sha256),
+                SearchField::Fingerprint(HashType::Sha512),
+            ],
+            SearchIn::Specific(fields) => fields.clone(),
+        };
 
-        if keywords.iter().all(|keyword| {
-            searchable_fields
+        let mut matched_in_fields = Vec::new();
+        let mut matched_keywords = Vec::new();
+
+        for field in &fields_to_search {
+            let field_content = self.get_field(field);
+
+            let field_matched_keywords: Vec<String> = keywords
                 .iter()
-                .all(|field| Self::check_field(field, keyword))
-        }) {
-            Some((keywords.to_vec(), SearchIn::All))
+                .filter(|k| Self::check_field(field_content, k))
+                .cloned()
+                .collect();
+
+            let field_matches = match keywords_match_mode {
+                KeywordsMatchMode::All => field_matched_keywords.len() == keywords.len(),
+                KeywordsMatchMode::Any => !field_matched_keywords.is_empty(),
+                KeywordsMatchMode::Specific(specific_keywords) => specific_keywords
+                    .iter()
+                    .all(|k| field_matched_keywords.contains(k)),
+            };
+
+            if field_matches {
+                matched_in_fields.push(field.clone());
+                matched_keywords.extend(field_matched_keywords);
+            }
+        }
+
+        let overall_match = match search_match_mode {
+            SearchMatchMode::All => matched_in_fields.len() == fields_to_search.len(),
+            SearchMatchMode::Any => !matched_in_fields.is_empty(),
+            SearchMatchMode::Specific(specific_fields) => specific_fields
+                .iter()
+                .all(|f| matched_in_fields.contains(f)),
+        };
+
+        if overall_match {
+            matched_keywords.sort();
+            matched_keywords.dedup();
+
+            let matched_in = if matched_in_fields.len() == fields_to_search.len() {
+                search_in.clone()
+            } else {
+                SearchIn::Specific(matched_in_fields)
+            };
+
+            Some((matched_keywords, matched_in))
         } else {
             None
         }
