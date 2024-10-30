@@ -122,9 +122,10 @@ impl KeyGenerator {
             let thread_found_key = Arc::clone(&found_key);
 
             let handle = thread::spawn(move || {
-                // FIXME: rng is broken yet again.
+                let rand = rand::thread_rng();
+
                 Self::generate_keys(
-                    &mut ChaCha8Rng::from_entropy(),
+                    &mut ChaCha8Rng::from_rng(rand).unwrap(),
                     &stop_flag,
                     &keywords,
                     &search_in,
