@@ -8,9 +8,11 @@ pub struct Cli {
     #[arg(long, short = 'S', default_value_t = SearchIn::default())]
     pub search_in: SearchIn,
 
+    /// Match mode for keywords
     #[arg(long, default_value_t = KeywordsMatchMode::default())]
     pub keywords_match_mode: KeywordsMatchMode,
 
+    /// Match mode for search fields
     #[arg(long, default_value_t = SearchMatchMode::default())]
     pub search_match_mode: SearchMatchMode,
 
