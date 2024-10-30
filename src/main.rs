@@ -10,7 +10,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use clap::Parser as _;
-use cli::{HashType, MatchMode, SearchField, SearchIn};
+use cli::{HashType, KeywordsMatchMode, SearchField, SearchIn, SearchMatchMode};
 use rand::SeedableRng as _;
 use rand_chacha::ChaCha8Rng;
 use ssh_key::rand_core::CryptoRngCore;
@@ -32,7 +32,8 @@ struct KeyGenerator {
 
     keywords: Arc<Vec<String>>,
     search_in: SearchIn,
-    match_mode: MatchMode,
+    keywords_match_mode: KeywordsMatchMode,
+    search_match_mode: SearchMatchMode,
 
     start_time: Arc<Instant>,
 }
@@ -47,24 +48,36 @@ struct GeneratorThread {
 fn main() -> anyhow::Result<()> {
     let cli = cli::Cli::parse();
 
-    println!("Starting key generation with {} threads", cli.threads);
+    println!("Starting SSH key generation with {} threads", cli.threads);
     println!(
-        "Searching for keywords: {:?} in {:?} with match mode {:?}",
-        cli.keywords, cli.search_in, cli.match_mode
+        "Searching for keywords: `{:?}` in `{:?}` for `{:?}` keywords, `{:?}` fields",
+        cli.keywords, cli.search_in, cli.keywords_match_mode, cli.search_match_mode
     );
 
-    KeyGenerator::new(cli.keywords, cli.search_in, cli.match_mode).run(cli.threads)?;
+    KeyGenerator::new(
+        cli.keywords,
+        cli.search_in,
+        cli.keywords_match_mode,
+        cli.search_match_mode,
+    )
+    .run(cli.threads)?;
 
     Ok(())
 }
 
 impl KeyGenerator {
-    fn new(keywords: Vec<String>, search_in: SearchIn, match_mode: MatchMode) -> Self {
+    fn new(
+        keywords: Vec<String>,
+        search_in: SearchIn,
+        keywords_match_mode: KeywordsMatchMode,
+        search_match_mode: SearchMatchMode,
+    ) -> Self {
         Self {
             generators: Vec::new(),
             keywords: Arc::new(keywords),
             search_in,
-            match_mode,
+            keywords_match_mode,
+            search_match_mode,
             start_time: Arc::new(Instant::now()),
         }
     }
@@ -80,7 +93,7 @@ impl KeyGenerator {
 
             if let Some(found_key) = generator.found_key.lock().unwrap().as_ref() {
                 println!(
-                    "Thread {} found keywords: {:?} in: {:?}",
+                    "Thread {} found keywords: `{:?}` in: `{:?}` field",
                     idx, found_key.keywords, found_key.in_fields
                 );
 
@@ -99,7 +112,8 @@ impl KeyGenerator {
             let keywords = self.keywords.clone();
 
             let search_in = self.search_in.clone();
-            let match_mode = self.match_mode.clone();
+            let keywords_match_mode = self.keywords_match_mode.clone();
+            let search_match_mode = self.search_match_mode.clone();
 
             let checked_keys = Arc::new(AtomicU64::new(0));
             let found_key = Arc::new(Mutex::new(None::<FoundKey>));
@@ -108,12 +122,14 @@ impl KeyGenerator {
             let thread_found_key = Arc::clone(&found_key);
 
             let handle = thread::spawn(move || {
+                // FIXME: rng is broken yet again.
                 Self::generate_keys(
                     &mut ChaCha8Rng::from_entropy(),
                     &stop_flag,
                     &keywords,
                     &search_in,
-                    &match_mode,
+                    &keywords_match_mode,
+                    &search_match_mode,
                     &thread_checked_keys,
                     &thread_found_key,
                 );
@@ -157,13 +173,19 @@ impl KeyGenerator {
         stop_flag: &Arc<AtomicBool>,
         keywords: &[String],
         search_in: &SearchIn,
-        match_mode: &MatchMode,
+        keyword_match_mode: &KeywordsMatchMode,
+        search_match_mode: &SearchMatchMode,
         checked_keys: &AtomicU64,
         found_key: &Arc<Mutex<Option<FoundKey>>>,
     ) {
         while !stop_flag.load(Ordering::Relaxed) {
-            if let Some(key) = Self::try_generate_matching_key(rng, keywords, search_in, match_mode)
-            {
+            if let Some(key) = Self::try_generate_matching_key(
+                rng,
+                keywords,
+                search_in,
+                keyword_match_mode,
+                search_match_mode,
+            ) {
                 if let Ok(mut found) = found_key.lock() {
                     *found = Some(key);
                 }
@@ -178,7 +200,8 @@ impl KeyGenerator {
         rng: &mut impl CryptoRngCore,
         keywords: &[String],
         search_in: &SearchIn,
-        match_mode: &MatchMode,
+        keywords_match_mode: &KeywordsMatchMode,
+        search_match_mode: &SearchMatchMode,
     ) -> Option<FoundKey> {
         let private_key = PrivateKey::random(rng, Algorithm::Ed25519).ok()?;
         let public_key = private_key.public_key();
@@ -186,7 +209,7 @@ impl KeyGenerator {
         let key_data = KeyData::new(&private_key, public_key)?;
 
         if let Some((matched_keywords, matched_in_fields)) =
-            key_data.matches(keywords, search_in, match_mode)
+            key_data.matches(keywords, search_in, keywords_match_mode, search_match_mode)
         {
             Some(FoundKey {
                 private: private_key.clone(),
@@ -221,7 +244,8 @@ impl KeyData {
         &self,
         keywords: &[String],
         search_in: &SearchIn,
-        match_mode: &MatchMode,
+        keyword_match_mode: &KeywordsMatchMode,
+        search_match_mode: &SearchMatchMode,
     ) -> Option<(Vec<String>, SearchIn)> {
         // FIXME: Temporarily hard-coded to search for every
         // word in every field.
