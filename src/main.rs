@@ -149,7 +149,7 @@ impl KeyGenerator {
     fn monitor_progress(&self, stop_flag: &Arc<AtomicBool>) {
         let mut last_status_print = Instant::now();
 
-        while !stop_flag.load(Ordering::Relaxed) {
+        while !stop_flag.load(Ordering::Acquire) {
             if last_status_print.elapsed() >= Duration::from_secs(1) {
                 let total_keys: u64 = self
                     .generators
@@ -179,7 +179,7 @@ impl KeyGenerator {
         checked_keys: &AtomicU64,
         found_key: &Arc<Mutex<Option<FoundKey>>>,
     ) {
-        while !stop_flag.load(Ordering::Relaxed) {
+        while !stop_flag.load(Ordering::Acquire) {
             if let Some(key) = Self::try_generate_matching_key(
                 rng,
                 keywords,
