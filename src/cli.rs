@@ -64,17 +64,21 @@ impl Default for SearchIn {
     }
 }
 
-impl ToString for SearchIn {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for SearchIn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Keys => "keys".to_string(),
-            Self::Fingerprints => "fingerprints".to_string(),
-            Self::All => "all".to_string(),
-            Self::Specific(fields) => fields
-                .iter()
-                .map(|field| field.to_string())
-                .collect::<Vec<String>>()
-                .join(","),
+            Self::Keys => write!(f, "keys"),
+            Self::Fingerprints => write!(f, "fingerprints"),
+            Self::All => write!(f, "all"),
+            Self::Specific(fields) => write!(
+                f,
+                "{}",
+                fields
+                    .iter()
+                    .map(SearchField::to_string)
+                    .collect::<Vec<String>>()
+                    .join(",")
+            ),
         }
     }
 }
@@ -103,13 +107,13 @@ impl std::str::FromStr for SearchIn {
     }
 }
 
-impl ToString for SearchField {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for SearchField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::PublicKey => "public-key".to_string(),
-            Self::PrivateKey => "private-key".to_string(),
-            Self::Fingerprint(HashType::Sha256) => "sha256-fingerprint".to_string(),
-            Self::Fingerprint(HashType::Sha512) => "sha512-fingerprint".to_string(),
+            Self::PrivateKey => write!(f, "private-key"),
+            Self::PublicKey => write!(f, "public-key"),
+            Self::Fingerprint(HashType::Sha256) => write!(f, "sha256-fingerprint"),
+            Self::Fingerprint(HashType::Sha512) => write!(f, "sha512-fingerprint"),
         }
     }
 }
@@ -138,12 +142,12 @@ impl std::str::FromStr for KeywordsMatchMode {
     }
 }
 
-impl ToString for KeywordsMatchMode {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for KeywordsMatchMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::All => "all".to_string(),
-            Self::Any => "any".to_string(),
-            Self::Specific(fields) => fields.join(","),
+            Self::Specific(fields) => write!(f, "{}", fields.join(",")),
+            Self::All => write!(f, "all"),
+            Self::Any => write!(f, "any"),
         }
     }
 }
@@ -171,16 +175,20 @@ impl std::str::FromStr for SearchMatchMode {
     }
 }
 
-impl ToString for SearchMatchMode {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for SearchMatchMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::All => "all".to_string(),
-            Self::Any => "any".to_string(),
-            Self::Specific(fields) => fields
-                .iter()
-                .map(|field| field.to_string())
-                .collect::<Vec<String>>()
-                .join(","),
+            Self::All => write!(f, "all"),
+            Self::Any => write!(f, "any"),
+            Self::Specific(fields) => write!(
+                f,
+                "{}",
+                fields
+                    .iter()
+                    .map(SearchField::to_string)
+                    .collect::<Vec<String>>()
+                    .join(",")
+            ),
         }
     }
 }

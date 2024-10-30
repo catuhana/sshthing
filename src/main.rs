@@ -190,6 +190,7 @@ impl KeyGenerator {
                 if let Ok(mut found) = found_key.lock() {
                     *found = Some(key);
                 }
+
                 stop_flag.store(true, Ordering::Relaxed);
             }
 
