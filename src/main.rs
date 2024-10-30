@@ -34,7 +34,7 @@ struct KeyGenerator {
     search_in: SearchIn,
     match_mode: MatchMode,
 
-    start_time: Arc<Option<Instant>>,
+    start_time: Arc<Instant>,
 }
 
 #[derive(Debug)]
@@ -65,7 +65,7 @@ impl KeyGenerator {
             keywords: Arc::new(keywords),
             search_in,
             match_mode,
-            start_time: Arc::new(None),
+            start_time: Arc::new(Instant::now()),
         }
     }
 
@@ -109,6 +109,7 @@ impl KeyGenerator {
 
             let handle = thread::spawn(move || {
                 Self::generate_keys(
+                    &mut ChaCha8Rng::from_entropy(),
                     &stop_flag,
                     &keywords,
                     &search_in,
@@ -126,7 +127,6 @@ impl KeyGenerator {
         }
 
         self.generators = generators;
-        self.start_time = Arc::new(Some(Instant::now()));
     }
 
     fn monitor_progress(&self, stop_flag: &Arc<AtomicBool>) {
@@ -140,16 +140,20 @@ impl KeyGenerator {
                     .map(|g| g.checked_keys.load(Ordering::Relaxed))
                     .sum();
 
-                let elapsed = self.start_time.as_ref().unwrap().elapsed().as_secs();
-                let keys_per_sec = total_keys / elapsed;
+                let elapsed = self.start_time.elapsed().as_secs_f64();
+                let keys_per_sec = total_keys as f64 / elapsed;
 
-                println!("Checked {total_keys} keys total ({keys_per_sec:.2} keys/sec)",);
+                println!("Checked {total_keys} keys total ({keys_per_sec:.2} keys/sec)");
+
                 last_status_print = Instant::now();
             }
+
+            thread::sleep(Duration::from_secs(1));
         }
     }
 
     fn generate_keys(
+        rng: &mut impl CryptoRngCore,
         stop_flag: &Arc<AtomicBool>,
         keywords: &[String],
         search_in: &SearchIn,
@@ -157,11 +161,8 @@ impl KeyGenerator {
         checked_keys: &AtomicU64,
         found_key: &Arc<Mutex<Option<FoundKey>>>,
     ) {
-        let mut rng = ChaCha8Rng::from_entropy();
-
         while !stop_flag.load(Ordering::Relaxed) {
-            if let Some(key) =
-                Self::try_generate_matching_key(&mut rng, keywords, search_in, match_mode)
+            if let Some(key) = Self::try_generate_matching_key(rng, keywords, search_in, match_mode)
             {
                 if let Ok(mut found) = found_key.lock() {
                     *found = Some(key);
@@ -216,163 +217,30 @@ impl KeyData {
         })
     }
 
-    // TODO: There's a bug here. Even though `SearchIn::All` and
-    // `MatchMode::All` is passed, it stops as soon as finds a
-    // keyword on one of the `SearchIn` enum values.
     fn matches(
         &self,
         keywords: &[String],
         search_in: &SearchIn,
         match_mode: &MatchMode,
     ) -> Option<(Vec<String>, SearchIn)> {
-        let searchable_fields = match search_in {
-            SearchIn::Specific(fields) => fields
+        // FIXME: Temporarily hard-coded to search for every
+        // word in every field.
+        let searchable_fields = vec![
+            &self.private_openssh,
+            &self.public_openssh,
+            &self.sha256_fingerprint,
+            &self.sha512_fingerprint,
+        ];
+
+        if keywords.iter().all(|keyword| {
+            searchable_fields
                 .iter()
-                .map(|field| self.get_field(field))
-                .collect::<Vec<_>>(),
-            SearchIn::Keys => vec![&self.private_openssh, &self.public_openssh],
-            SearchIn::Fingerprints => vec![&self.sha256_fingerprint, &self.sha512_fingerprint],
-            SearchIn::All => vec![
-                &self.private_openssh,
-                &self.public_openssh,
-                &self.sha256_fingerprint,
-                &self.sha512_fingerprint,
-            ],
-        };
-
-        let mut matched_keywords = Vec::new();
-        let mut found_in_private = false;
-        let mut found_in_public = false;
-        let mut found_in_sha256 = false;
-        let mut found_in_sha512 = false;
-
-        let matches = match match_mode {
-            MatchMode::All => keywords.iter().all(|keyword| {
-                let mut found = false;
-
-                for (idx, field) in searchable_fields.iter().enumerate() {
-                    if Self::check_field(field, keyword) {
-                        found = true;
-                        match search_in {
-                            SearchIn::All => match idx {
-                                0 => found_in_private = true,
-                                1 => found_in_public = true,
-                                2 => found_in_sha256 = true,
-                                3 => found_in_sha512 = true,
-                                _ => {}
-                            },
-                            SearchIn::Keys => match idx {
-                                0 => found_in_private = true,
-                                1 => found_in_public = true,
-                                _ => {}
-                            },
-                            SearchIn::Fingerprints => match idx {
-                                0 => found_in_sha256 = true,
-                                1 => found_in_sha512 = true,
-                                _ => {}
-                            },
-                            SearchIn::Specific(fields) => {
-                                if idx < fields.len() {
-                                    match &fields[idx] {
-                                        SearchField::PrivateKey => found_in_private = true,
-                                        SearchField::PublicKey => found_in_public = true,
-                                        SearchField::Fingerprint(HashType::Sha256) => {
-                                            found_in_sha256 = true;
-                                        }
-                                        SearchField::Fingerprint(HashType::Sha512) => {
-                                            found_in_sha512 = true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if found {
-                    matched_keywords.push(keyword.clone());
-                }
-                found
-            }),
-            MatchMode::Any => keywords.iter().any(|keyword| {
-                let mut found = false;
-
-                for (idx, field) in searchable_fields.iter().enumerate() {
-                    if Self::check_field(field, keyword) {
-                        found = true;
-
-                        match search_in {
-                            SearchIn::All => match idx {
-                                0 => found_in_private = true,
-                                1 => found_in_public = true,
-                                2 => found_in_sha256 = true,
-                                3 => found_in_sha512 = true,
-                                _ => {}
-                            },
-                            SearchIn::Keys => match idx {
-                                0 => found_in_private = true,
-                                1 => found_in_public = true,
-                                _ => {}
-                            },
-                            SearchIn::Fingerprints => match idx {
-                                0 => found_in_sha256 = true,
-                                1 => found_in_sha512 = true,
-                                _ => {}
-                            },
-                            SearchIn::Specific(fields) => {
-                                if idx < fields.len() {
-                                    match &fields[idx] {
-                                        SearchField::PrivateKey => found_in_private = true,
-                                        SearchField::PublicKey => found_in_public = true,
-                                        SearchField::Fingerprint(HashType::Sha256) => {
-                                            found_in_sha256 = true;
-                                        }
-                                        SearchField::Fingerprint(HashType::Sha512) => {
-                                            found_in_sha512 = true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if found {
-                    matched_keywords.push(keyword.clone());
-                }
-                found
-            }),
-        };
-
-        if !matches {
-            return None;
+                .all(|field| Self::check_field(field, keyword))
+        }) {
+            Some((keywords.to_vec(), SearchIn::All))
+        } else {
+            None
         }
-
-        let result_search_in =
-            if found_in_private && found_in_public && found_in_sha256 && found_in_sha512 {
-                SearchIn::All
-            } else if found_in_private && found_in_public {
-                SearchIn::Keys
-            } else if found_in_sha256 && found_in_sha512 {
-                SearchIn::Fingerprints
-            } else {
-                let mut specific_fields = Vec::new();
-                if found_in_private {
-                    specific_fields.push(SearchField::PrivateKey);
-                }
-                if found_in_public {
-                    specific_fields.push(SearchField::PublicKey);
-                }
-                if found_in_sha256 {
-                    specific_fields.push(SearchField::Fingerprint(HashType::Sha256));
-                }
-                if found_in_sha512 {
-                    specific_fields.push(SearchField::Fingerprint(HashType::Sha512));
-                }
-                SearchIn::Specific(specific_fields)
-            };
-
-        Some((matched_keywords, result_search_in))
     }
 
     const fn get_field(&self, field: &SearchField) -> &String {
