@@ -38,6 +38,6 @@ sshthing --keywords meow,mrrp --search-in all
 # Look for `meow` and `mrrp` keywords in any of private & public keys, matching all keywords
 sshthing --keywords meow,mrrp --search-in keys --search-match-mode any
 # Look for `meow` and `mrrp` keywords in all fields, matching any keyword
-sshthing --keywords meow-mrrp --search-in all --keywords-match-mode any
-# ...
+sshthing --keywords meow,mrrp --search-in all --keywords-match-mode any
+# ...and so on
 ```

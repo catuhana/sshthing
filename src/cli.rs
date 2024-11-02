@@ -67,9 +67,6 @@ impl Default for SearchIn {
 impl std::fmt::Display for SearchIn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Keys => write!(f, "keys"),
-            Self::Fingerprints => write!(f, "fingerprints"),
-            Self::All => write!(f, "all"),
             Self::Specific(fields) => write!(
                 f,
                 "{}",
@@ -79,6 +76,9 @@ impl std::fmt::Display for SearchIn {
                     .collect::<Vec<String>>()
                     .join(",")
             ),
+            Self::Keys => write!(f, "keys"),
+            Self::Fingerprints => write!(f, "fingerprints"),
+            Self::All => write!(f, "all"),
         }
     }
 }
@@ -178,8 +178,6 @@ impl std::str::FromStr for SearchMatchMode {
 impl std::fmt::Display for SearchMatchMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::All => write!(f, "all"),
-            Self::Any => write!(f, "any"),
             Self::Specific(fields) => write!(
                 f,
                 "{}",
@@ -189,6 +187,8 @@ impl std::fmt::Display for SearchMatchMode {
                     .collect::<Vec<String>>()
                     .join(",")
             ),
+            Self::All => write!(f, "all"),
+            Self::Any => write!(f, "any"),
         }
     }
 }
