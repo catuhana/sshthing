@@ -160,7 +160,7 @@ impl KeyGenerator {
                 let elapsed = self.start_time.elapsed().as_secs_f64();
                 let keys_per_sec = total_keys as f64 / elapsed;
 
-                println!("Checked {total_keys} keys total ({keys_per_sec:.2} keys/sec)");
+                println!("Checked {total_keys} keys total ({keys_per_sec:.2} keys/sec avg.)");
 
                 last_status_print = Instant::now();
             }
