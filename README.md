@@ -2,7 +2,7 @@
 
 Mass-generate Ed25519 SSH keys until a word is found in its fields (private/public key, fingerprints, etc.).
 
-On average, generates 130_000 keys on i5-1240p and 200_000 keys on M1 Max per second.
+On average, generates 130_000 keys on i5-1240p, 200_000 keys on M1 Max, and 560_000 keys on M4 Max per second.
 
 ## Install
 
