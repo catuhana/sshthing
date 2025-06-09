@@ -1,8 +1,11 @@
 # sshthing
 
+> [!IMPORTANT]
+> VIBE CODE ALERT! Even though initially was entirely written by me, now parts of this code base (the *optimisations* in the [src/key.rs]) are written by Claude Sonnet 4.
+
 Mass-generate Ed25519 SSH keys until a word is found in its fields (private/public key, fingerprints, etc.).
 
-On average, generates 130_000 keys on i5-1240p, 200_000 keys on M1 Max, and 560_000 keys on M4 Max per second.
+On average, generates 280_000 keys on i5-1240p, ~~200_000 keys on M1 Max~~ (outdated), and ~~560_000 keys on M4 Max~~ (outdated) per second.
 
 ## Install
 
@@ -13,31 +16,18 @@ cargo install --git https://github.com/catuhana/sshthing
 ## Use
 
 ```
-Usage: sshthing.exe [OPTIONS] --keywords <KEYWORDS>
+Usage: sshthing.exe [OPTIONS] <KEYWORDS>...
+
+Arguments:
+  <KEYWORDS>...  The keywords to search for in SSH fields
 
 Options:
-  -K, --keywords <KEYWORDS>
-          The keywords to search for in SSH fields
-  -S, --search-in <SEARCH_IN>
-          Generated SSH fields to search in [default: sha256-fingerprint]
-      --keywords-match-mode <KEYWORDS_MATCH_MODE>
-          Match mode for keywords [default: all]
-      --search-match-mode <SEARCH_MATCH_MODE>
-          Match mode for search fields [default: all]
-  -t, --threads <THREADS>
-          The number of threads to use [default: 16]
-  -h, --help
-          Print help
-```
-
-```sh
-# Look for `meow` keyword in SHA256 fingerprint field.
-sshthing --keywords meow
-# Look for `meow` and `mrrp` keywords in all fields, matching all keywords
-sshthing --keywords meow,mrrp --search-in all
-# Look for `meow` and `mrrp` keywords in any of private & public keys, matching all keywords
-sshthing --keywords meow,mrrp --search-in keys --search-match-mode any
-# Look for `meow` and `mrrp` keywords in all fields, matching any keyword
-sshthing --keywords meow,mrrp --search-in all --keywords-match-mode any
-# ...and so on
+  -f, --fields <FIELDS>    SSH fields to search in (default: sha256-fingerprint) [default: sha256-fingerprint] [possible values: private-key, public-key, sha256-fingerprint, sha512-fingerprint]
+      --all-keywords       Require ALL keywords to match (default: any keyword matches)
+      --all-fields         Require ALL fields to match (default: any field matches)
+  -t, --threads <THREADS>  Number of threads to use [default: 16]
+      --all                Search in all available fields
+      --keys-only          Search only in key fields (private-key, public-key)
+      --fingerprints-only  Search only in fingerprint fields (sha256, sha512)
+  -h, --help               Print help
 ```
