@@ -34,9 +34,10 @@ Options:
   -f, --fields <FIELDS>    SSH fields to search in (default: sha256-fingerprint) [default: sha256-fingerprint] [possible values: private-key, public-key, sha256-fingerprint, sha512-fingerprint]
       --all-keywords       Require ALL keywords to match (default: any keyword matches)
       --all-fields         Require ALL fields to match (default: any field matches)
-  -t, --threads <THREADS>  Number of threads to use [default: 16]
       --all                Search in all available fields
       --keys-only          Search only in key fields (private-key, public-key)
       --fingerprints-only  Search only in fingerprint fields (sha256, sha512)
+      --no-keep-awake      Don't let your system stay awake while generating keys
+  -t, --threads <THREADS>  Number of threads to use [default: 16]
   -h, --help               Print help
 ```
