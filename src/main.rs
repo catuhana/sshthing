@@ -4,7 +4,10 @@ use clap::Parser as _;
 use rand::{Rng, SeedableRng as _};
 use rand_chacha::ChaCha12Rng;
 
+use crate::keep_awake::KeepAwake as _;
+
 mod cli;
+mod keep_awake;
 mod key;
 
 fn main() -> anyhow::Result<()> {
@@ -13,8 +16,8 @@ fn main() -> anyhow::Result<()> {
     let search_fields = cli.search_fields();
     println!("=== SSHThing Options ===");
     println!("Keywords: {:?}", cli.keywords);
-    println!("Search fields: {search_fields:?}");
     println!("Thread count: {}", cli.threads);
+    println!("Keep awake: {}", !cli.no_keep_awake);
     println!("Match requirements:");
     println!("  - All keywords required: {}", cli.requires_all_keywords());
     println!("  - All fields required: {}", cli.requires_all_fields());
@@ -29,7 +32,16 @@ fn main() -> anyhow::Result<()> {
         println!("  - Searching CUSTOM fields: {search_fields:?}");
     }
     println!("===================================");
-    println!("Starting SSH key generation with {} threads", cli.threads);
+    println!("Starting SSH key generation...");
+
+    let mut keep_awake = if !cli.no_keep_awake {
+        Some(keep_awake::SystemKeepAwake::new("sshthing is generating keys").unwrap())
+    } else {
+        None
+    };
+    if let Some(ref mut ka) = keep_awake {
+        ka.prevent_sleep().unwrap();
+    }
 
     let generated_keys_counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
     let should_stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));

@@ -16,10 +16,6 @@ pub struct Cli {
     #[arg(long)]
     pub all_fields: bool,
 
-    /// Number of threads to use
-    #[arg(long, short, default_value_t = num_cpus::get())]
-    pub threads: usize,
-
     /// Search in all available fields
     #[arg(long, conflicts_with = "fields")]
     pub all: bool,
@@ -31,6 +27,14 @@ pub struct Cli {
     /// Search only in fingerprint fields (sha256, sha512)
     #[arg(long, conflicts_with_all = ["fields", "all", "keys_only"])]
     pub fingerprints_only: bool,
+
+    /// Don't let your system stay awake while generating keys
+    #[arg(long)]
+    pub no_keep_awake: bool,
+
+    /// Number of threads to use
+    #[arg(long, short, default_value_t = num_cpus::get())]
+    pub threads: usize,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug, PartialEq, Eq)]
