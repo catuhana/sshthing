@@ -1,109 +1,77 @@
 #[derive(clap::Parser, Debug)]
 pub struct Cli {
     /// The keywords to search for in SSH fields
-    #[arg(long, short = 'K', value_delimiter = ',', required = true)]
+    #[arg(value_delimiter = ',', required = true)]
     pub keywords: Vec<String>,
 
-    /// Generated SSH fields to search in
-    #[arg(long, short = 'S', default_value_t = SearchIn::default())]
-    pub search_in: SearchIn,
+    /// SSH fields to search in (default: sha256-fingerprint)
+    #[arg(long, short = 'f', value_delimiter = ',', default_values = ["sha256-fingerprint"])]
+    pub fields: Vec<SearchField>,
 
-    /// Match mode for keywords
-    #[arg(long, default_value_t = KeywordsMatchMode::default())]
-    pub keywords_match_mode: KeywordsMatchMode,
+    /// Require ALL keywords to match (default: any keyword matches)
+    #[arg(long)]
+    pub all_keywords: bool,
 
-    /// Match mode for search fields
-    #[arg(long, default_value_t = SearchMatchMode::default())]
-    pub search_match_mode: SearchMatchMode,
+    /// Require ALL fields to match (default: any field matches)
+    #[arg(long)]
+    pub all_fields: bool,
 
-    /// The number of threads to use
+    /// Number of threads to use
     #[arg(long, short, default_value_t = num_cpus::get())]
     pub threads: usize,
+
+    /// Search in all available fields
+    #[arg(long, conflicts_with = "fields")]
+    pub all: bool,
+
+    /// Search only in key fields (private-key, public-key)
+    #[arg(long, conflicts_with_all = ["fields", "all"])]
+    pub keys_only: bool,
+
+    /// Search only in fingerprint fields (sha256, sha512)
+    #[arg(long, conflicts_with_all = ["fields", "all", "keys_only"])]
+    pub fingerprints_only: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SearchIn {
-    Specific(Vec<SearchField>),
-    Keys,
-    Fingerprints,
-    All,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq, Eq)]
 pub enum SearchField {
+    #[value(name = "private-key")]
     PrivateKey,
+    #[value(name = "public-key")]
     PublicKey,
-    Fingerprint(HashType),
+    #[value(name = "sha256-fingerprint")]
+    Sha256Fingerprint,
+    #[value(name = "sha512-fingerprint")]
+    Sha512Fingerprint,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum HashType {
-    Sha256,
-    Sha512,
-}
-
-#[derive(Clone, Debug, Default)]
-pub enum KeywordsMatchMode {
-    Specific(Vec<String>),
-    #[default]
-    All,
-    Any,
-}
-
-#[derive(Clone, Debug, Default)]
-pub enum SearchMatchMode {
-    Specific(Vec<SearchField>),
-    #[default]
-    All,
-    Any,
-}
-
-impl Default for SearchIn {
-    fn default() -> Self {
-        Self::Specific(vec![SearchField::Fingerprint(HashType::Sha256)])
-    }
-}
-
-impl std::fmt::Display for SearchIn {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Specific(fields) => write!(
-                f,
-                "{}",
-                fields
-                    .iter()
-                    .map(SearchField::to_string)
-                    .collect::<Vec<String>>()
-                    .join(",")
-            ),
-            Self::Keys => write!(f, "keys"),
-            Self::Fingerprints => write!(f, "fingerprints"),
-            Self::All => write!(f, "all"),
+impl Cli {
+    pub fn search_fields(&self) -> Vec<SearchField> {
+        if self.all {
+            vec![
+                SearchField::PrivateKey,
+                SearchField::PublicKey,
+                SearchField::Sha256Fingerprint,
+                SearchField::Sha512Fingerprint,
+            ]
+        } else if self.keys_only {
+            vec![SearchField::PrivateKey, SearchField::PublicKey]
+        } else if self.fingerprints_only {
+            vec![
+                SearchField::Sha256Fingerprint,
+                SearchField::Sha512Fingerprint,
+            ]
+        } else {
+            self.fields.clone()
         }
     }
-}
 
-impl std::str::FromStr for SearchIn {
-    type Err = String;
+    pub const fn requires_all_keywords(&self) -> bool {
+        self.all_keywords
+    }
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "keys" => Ok(Self::Keys),
-            "fingerprints" => Ok(Self::Fingerprints),
-            "all" => Ok(Self::All),
-            _ => {
-                let fields: Result<Vec<SearchField>, _> = s
-                    .split(',')
-                    .map(str::trim)
-                    .map(SearchField::from_str)
-                    .collect();
-
-                match fields {
-                    Ok(fields) if !fields.is_empty() => Ok(Self::Specific(fields)),
-                    _ => Err(format!("Invalid search in: {s}")),
-                }
-            }
-        }
+    pub const fn requires_all_fields(&self) -> bool {
+        self.all_fields
     }
 }
 
@@ -112,97 +80,8 @@ impl std::fmt::Display for SearchField {
         match self {
             Self::PrivateKey => write!(f, "private-key"),
             Self::PublicKey => write!(f, "public-key"),
-            Self::Fingerprint(HashType::Sha256) => write!(f, "sha256-fingerprint"),
-            Self::Fingerprint(HashType::Sha512) => write!(f, "sha512-fingerprint"),
-        }
-    }
-}
-
-impl std::str::FromStr for KeywordsMatchMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "all" => Ok(Self::All),
-            "any" => Ok(Self::Any),
-            _ => {
-                let fields = s
-                    .split(',')
-                    .map(str::trim)
-                    .map(String::from)
-                    .collect::<Vec<String>>();
-
-                if fields.is_empty() {
-                    return Err(format!("Invalid keywords match mode: {s}"));
-                }
-
-                Ok(Self::Specific(fields))
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for KeywordsMatchMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Specific(fields) => write!(f, "{}", fields.join(",")),
-            Self::All => write!(f, "all"),
-            Self::Any => write!(f, "any"),
-        }
-    }
-}
-
-impl std::str::FromStr for SearchMatchMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "all" => Ok(Self::All),
-            "any" => Ok(Self::Any),
-            _ => {
-                let fields: Result<Vec<SearchField>, _> = s
-                    .split(',')
-                    .map(str::trim)
-                    .map(SearchField::from_str)
-                    .collect();
-
-                match fields {
-                    Ok(fields) if !fields.is_empty() => Ok(Self::Specific(fields)),
-                    _ => Err(format!("Invalid search match mode: {s}")),
-                }
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for SearchMatchMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Specific(fields) => write!(
-                f,
-                "{}",
-                fields
-                    .iter()
-                    .map(SearchField::to_string)
-                    .collect::<Vec<String>>()
-                    .join(",")
-            ),
-            Self::All => write!(f, "all"),
-            Self::Any => write!(f, "any"),
-        }
-    }
-}
-
-impl std::str::FromStr for SearchField {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "private" | "private-key" => Ok(Self::PrivateKey),
-            "public" | "public-key" => Ok(Self::PublicKey),
-            "sha256" | "sha256-fingerprint" => Ok(Self::Fingerprint(HashType::Sha256)),
-            "sha512" | "sha512-fingerprint" => Ok(Self::Fingerprint(HashType::Sha512)),
-            _ => Err(format!("Invalid search field: {s}")),
+            Self::Sha256Fingerprint => write!(f, "sha256-fingerprint"),
+            Self::Sha512Fingerprint => write!(f, "sha512-fingerprint"),
         }
     }
 }
