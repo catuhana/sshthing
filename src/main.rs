@@ -87,17 +87,23 @@ fn main() -> anyhow::Result<()> {
         let mut last_count = 0;
         let mut last_instant = std::time::Instant::now();
 
+        let start_instant = last_instant;
+
         while !status_should_stop.load(std::sync::atomic::Ordering::SeqCst) {
             std::thread::sleep(std::time::Duration::from_secs(1));
 
             let current_count = status_counter.load(std::sync::atomic::Ordering::SeqCst);
             let current_instant = std::time::Instant::now();
             let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
+            let total_elapsed = current_instant.duration_since(start_instant).as_secs_f64();
 
-            if elapsed > 0.0 {
+            if elapsed > 0.0 && total_elapsed > 0.0 {
                 let generated_keys_per_second = (current_count - last_count) as f64 / elapsed;
+                let average_keys_per_second = current_count as f64 / total_elapsed;
 
-                print!("\rGenerated keys: {current_count} ({generated_keys_per_second:.2} keys/s)",);
+                print!(
+                    "\rGenerated keys: {current_count} ({generated_keys_per_second:.2} keys/s, avg: {average_keys_per_second:.2} keys/s)"
+                );
                 std::io::stdout().flush().unwrap();
             }
 
