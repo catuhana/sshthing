@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
     } else {
         println!("  - Searching CUSTOM fields: {search_fields:?}");
     }
-    println!("===================================");
+    println!("========================");
     println!("Starting SSH key generation...");
 
     let mut keep_awake = if !cli.no_keep_awake {
