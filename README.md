@@ -1,7 +1,7 @@
 # sshthing
 
 > [!IMPORTANT]
-> VIBE CODE ALERT! Even though initially was entirely written by me, now parts of this code base (the *optimisations* in the [src/key.rs]) are written by Claude Sonnet 4.
+> VIBE CODE ALERT! Even though initially was entirely written by me, now parts of this code base (the *optimisations* in the [src/key.rs](src/key.rs)) are written by Claude Sonnet 4.
 
 Mass-generate Ed25519 SSH keys until a word is found in its fields (private/public key, fingerprints, etc.).
 
