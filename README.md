@@ -1,16 +1,22 @@
 # sshthing
 
 > [!IMPORTANT]
-> VIBE CODE ALERT! Even though initially was entirely written by me, now parts of this code base (the *optimisations* in the [src/key.rs](src/key.rs)) are written by Claude Sonnet 4.
+> The *optimisations* in the [src/key.rs](src/key.rs) are written by Claude Sonnet 4.
 
 Mass-generate Ed25519 SSH keys until a word is found in its fields (private/public key, fingerprints, etc.).
 
 ## *Benchmark*
 
+> [!TIP]
+> I would be grateful if you've contributed your benchmarks here!
+> 1. Run with `hello,this,is,averylongtext,withsomanyargumentsicanttakeitanymomre --all --all-keywords --all-fields` inputs
+> 2. Let it run for around 2-5 minutes
+> 3. Add the average keys/s below in the same format
+
 On average, generates
 
-- 280_000 keys on an Intel i5-1240p
-- 490_000 keys on a AMD Ryzen 5 7600
+- 282_070 keys on an Intel i5-1240p
+- 490_000 keys on an AMD Ryzen 5 7600
 - ~~200_000 keys on an Apple Silicon M1 Max~~ (outdated, pending to update)
 - ~~560_000 keys on an Apple Silicon M4 Max~~ (outdated, pending to update)
 
