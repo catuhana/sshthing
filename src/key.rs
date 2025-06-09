@@ -6,6 +6,8 @@ use base64::Engine;
 use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256, Sha512};
 
+use crate::errors::KeyError;
+
 pub struct Ed25519Key {
     pub signing_key: SigningKey,
     pub verifying_key: VerifyingKey,
@@ -249,17 +251,19 @@ impl Ed25519Key {
         }
 
         if needle.len() == 1 {
+            // return memchr::memchr(needle[0], haystack).is_some();
             let target = needle[0];
             return haystack.contains(&target);
         }
 
+        // memchr::memmem::find(haystack, needle).is_some()
         haystack
             .windows(needle.len())
             .any(|window| window == needle)
     }
 
     #[inline]
-    pub fn write_openssh_public<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+    pub fn write_openssh_public<W: std::io::Write>(&self, writer: &mut W) -> Result<(), KeyError> {
         let mut buffer = Vec::with_capacity(Self::SSH_PUBLIC_KEY_WIRE_SIZE);
 
         // Write the length of the key type string (4 bytes, big-endian)
@@ -271,15 +275,19 @@ impl Ed25519Key {
         // Write the actual 32-byte Ed25519 public key
         buffer.extend_from_slice(self.verifying_key.as_bytes());
 
-        writer.write_all(b"ssh-ed25519 ")?;
+        writer
+            .write_all(b"ssh-ed25519 ")
+            .map_err(KeyError::WriteKeyPart)?;
         let encoded = base64::engine::general_purpose::STANDARD.encode(&buffer);
-        writer.write_all(encoded.as_bytes())?;
+        writer
+            .write_all(encoded.as_bytes())
+            .map_err(KeyError::WriteKeyPart)?;
 
         Ok(())
     }
 
     #[inline]
-    pub fn write_openssh_private<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+    pub fn write_openssh_private<W: std::io::Write>(&self, writer: &mut W) -> Result<(), KeyError> {
         let mut buffer = Vec::with_capacity(Self::OPENSSH_PRIVATE_KEY_BUFFER_SIZE);
 
         // Write OpenSSH private key format magic header
@@ -338,13 +346,17 @@ impl Ed25519Key {
         // Add padding bytes (1, 2, 3, ...) to align private section to 8-byte boundary
         buffer.extend_from_slice(&Self::PADDING_SEQUENCE[..Self::OPENSSH_PADDING_LENGTH]);
 
-        writer.write_all(b"-----BEGIN OPENSSH PRIVATE KEY-----\n")?;
+        writer
+            .write_all(b"-----BEGIN OPENSSH PRIVATE KEY-----\n")
+            .map_err(KeyError::WriteKeyPart)?;
         let encoded = base64::engine::general_purpose::STANDARD.encode(&buffer);
         for chunk in encoded.as_bytes().chunks(70) {
-            writer.write_all(chunk)?;
-            writer.write_all(b"\n")?;
+            writer.write_all(chunk).map_err(KeyError::WriteKeyPart)?;
+            writer.write_all(b"\n").map_err(KeyError::WriteKeyPart)?;
         }
-        writer.write_all(b"-----END OPENSSH PRIVATE KEY-----\n")?;
+        writer
+            .write_all(b"-----END OPENSSH PRIVATE KEY-----\n")
+            .map_err(KeyError::WriteKeyPart)?;
 
         Ok(())
     }

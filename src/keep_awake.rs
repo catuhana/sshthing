@@ -1,10 +1,12 @@
+use crate::errors::KeepAwakeError;
+
 pub trait KeepAwake {
-    fn new(reason: &str) -> Result<Self, Box<dyn std::error::Error>>
+    fn new(reason: &str) -> Result<Self, KeepAwakeError>
     where
         Self: Sized;
 
-    fn prevent_sleep(&mut self) -> Result<(), Box<dyn std::error::Error>>;
-    fn allow_sleep(&mut self) -> Result<(), Box<dyn std::error::Error>>;
+    fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError>;
+    fn allow_sleep(&mut self) -> Result<(), KeepAwakeError>;
 }
 
 pub struct SystemKeepAwake {
@@ -16,14 +18,14 @@ pub struct SystemKeepAwake {
 
 impl KeepAwake for SystemKeepAwake {
     #[cfg(target_os = "windows")]
-    fn new(reason: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    fn new(reason: &str) -> Result<Self, KeepAwakeError> {
         let inner = Some(windows::PowerRequest::new(reason)?);
 
         Ok(Self { inner })
     }
 
     #[cfg(target_os = "windows")]
-    fn prevent_sleep(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError> {
         if let Some(inner) = &mut self.inner {
             inner.prevent_sleep()?;
         }
@@ -31,7 +33,7 @@ impl KeepAwake for SystemKeepAwake {
     }
 
     #[cfg(target_os = "windows")]
-    fn allow_sleep(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn allow_sleep(&mut self) -> Result<(), KeepAwakeError> {
         if let Some(inner) = &mut self.inner {
             inner.allow_sleep()?;
         }
@@ -56,6 +58,7 @@ mod windows {
         core::PWSTR,
     };
 
+    use crate::errors::KeepAwakeError;
     use crate::keep_awake::KeepAwake;
 
     pub struct PowerRequest {
@@ -64,7 +67,7 @@ mod windows {
     }
 
     impl KeepAwake for PowerRequest {
-        fn new(reason: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        fn new(reason: &str) -> Result<Self, KeepAwakeError> {
             unsafe {
                 let mut reason_wide: Vec<u16> =
                     reason.encode_utf16().chain(std::iter::once(0)).collect();
@@ -75,7 +78,8 @@ mod windows {
                         SimpleReasonString: PWSTR(reason_wide.as_mut_ptr()),
                     },
                 };
-                let handle = Win32::System::Power::PowerCreateRequest(&context)?;
+                let handle = Win32::System::Power::PowerCreateRequest(&context)
+                    .map_err(KeepAwakeError::WindowsApi)?;
 
                 Ok(Self {
                     handle,
@@ -84,13 +88,14 @@ mod windows {
             }
         }
 
-        fn prevent_sleep(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError> {
             if !self.sleep_active {
                 unsafe {
                     Win32::System::Power::PowerSetRequest(
                         self.handle,
                         PowerRequestExecutionRequired,
-                    )?;
+                    )
+                    .map_err(KeepAwakeError::WindowsApi)?;
                 }
                 self.sleep_active = true;
             }
@@ -98,13 +103,14 @@ mod windows {
             Ok(())
         }
 
-        fn allow_sleep(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        fn allow_sleep(&mut self) -> Result<(), KeepAwakeError> {
             if self.sleep_active {
                 unsafe {
                     Win32::System::Power::PowerClearRequest(
                         self.handle,
                         PowerRequestExecutionRequired,
-                    )?;
+                    )
+                    .map_err(KeepAwakeError::WindowsApi)?;
                 }
                 self.sleep_active = false;
             }

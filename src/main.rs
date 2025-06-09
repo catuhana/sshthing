@@ -4,13 +4,15 @@ use clap::Parser as _;
 use rand::{Rng, SeedableRng as _};
 use rand_chacha::ChaCha12Rng;
 
+use crate::errors::SshThingError;
 use crate::keep_awake::KeepAwake as _;
 
 mod cli;
+mod errors;
 mod keep_awake;
 mod key;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), SshThingError> {
     let cli = cli::Cli::parse();
 
     let search_fields = cli.search_fields();
@@ -35,12 +37,14 @@ fn main() -> anyhow::Result<()> {
     println!("Starting SSH key generation...");
 
     let mut keep_awake = if !cli.no_keep_awake {
-        Some(keep_awake::SystemKeepAwake::new("sshthing is generating keys").unwrap())
+        Some(keep_awake::SystemKeepAwake::new(
+            "sshthing is generating keys",
+        )?)
     } else {
         None
     };
     if let Some(ref mut ka) = keep_awake {
-        ka.prevent_sleep().unwrap();
+        ka.prevent_sleep()?;
     }
 
     let generated_keys_counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
@@ -97,15 +101,13 @@ fn main() -> anyhow::Result<()> {
             let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
             let total_elapsed = current_instant.duration_since(start_instant).as_secs_f64();
 
-            if elapsed > 0.0 && total_elapsed > 0.0 {
-                let generated_keys_per_second = (current_count - last_count) as f64 / elapsed;
-                let average_keys_per_second = current_count as f64 / total_elapsed;
+            let generated_keys_per_second = (current_count - last_count) as f64 / elapsed;
+            let average_keys_per_second = current_count as f64 / total_elapsed;
 
-                print!(
-                    "\rGenerated keys: {current_count} ({generated_keys_per_second:.2} keys/s, avg: {average_keys_per_second:.2} keys/s)"
-                );
-                std::io::stdout().flush().unwrap();
-            }
+            print!(
+                "\rGenerated keys: {current_count} ({generated_keys_per_second:.2} keys/s, avg: {average_keys_per_second:.2} keys/s)"
+            );
+            let _ = std::io::stdout().flush();
 
             last_count = current_count;
             last_instant = current_instant;
@@ -127,7 +129,7 @@ fn main() -> anyhow::Result<()> {
             found_key.get_key_info().sha512_fingerprint
         );
 
-        std::fs::create_dir_all("generated")?;
+        std::fs::create_dir_all("generated").map_err(|error| SshThingError::Io(error))?;
         found_key.write_openssh_public(&mut std::fs::File::create("generated/id_ed25519.pub")?)?;
         found_key.write_openssh_private(&mut std::fs::File::create("generated/id_ed25519")?)?;
 
@@ -141,13 +143,9 @@ fn main() -> anyhow::Result<()> {
     should_stop.store(true, std::sync::atomic::Ordering::SeqCst);
 
     for generator in generator_handles {
-        if let Err(error) = generator.join() {
-            eprintln!("Error in key generation thread: {error:?}");
-        }
+        let _ = generator.join();
     }
-    if let Err(error) = status_handle.join() {
-        eprintln!("Error in status thread: {error:?}");
-    }
+    let _ = status_handle.join();
 
     println!("\nKey generation completed.");
 
