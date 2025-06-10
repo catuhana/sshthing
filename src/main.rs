@@ -5,7 +5,7 @@ use rand::{Rng, SeedableRng as _};
 use rand_chacha::ChaCha12Rng;
 
 #[global_allocator]
-static GLOBAL_ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use crate::errors::SshThingError;
 use crate::keep_awake::KeepAwake as _;

@@ -251,15 +251,10 @@ impl Ed25519Key {
         }
 
         if needle.len() == 1 {
-            // return memchr::memchr(needle[0], haystack).is_some();
-            let target = needle[0];
-            return haystack.contains(&target);
+            return memchr::memchr(needle[0], haystack).is_some();
         }
 
-        // memchr::memmem::find(haystack, needle).is_some()
-        haystack
-            .windows(needle.len())
-            .any(|window| window == needle)
+        memchr::memmem::find(haystack, needle).is_some()
     }
 
     #[inline]

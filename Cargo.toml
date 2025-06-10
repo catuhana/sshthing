@@ -7,7 +7,7 @@ edition = "2024"
 base64 = "0.22.1"
 clap = { version = "4.5.40", features = ["derive"] }
 ed25519-dalek = "2.1.1"
-# memchr = "2.7.4"
+memchr = "2.7.4"
 mimalloc = "0.1"
 num_cpus = "1.17.0"
 rand = "0.9.1"
@@ -26,3 +26,7 @@ windows = { version = "0.61.1", features = [
 lto = true
 codegen-units = 1
 panic = "abort"
+
+[profile.flamegraph]
+inherits = "release"
+debug = true
