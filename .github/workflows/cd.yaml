@@ -14,6 +14,7 @@ on:
         required: true
 
 env:
+  PROJECT_NAME: ${{ github.event.repository.name }}
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -25,14 +26,13 @@ jobs:
       attestations: write
     strategy:
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-    env:
-      REPOSITORY_NAME: ${{ github.event.repository.name }}
-      ARTIFACT_NAME: ${{ env.REPOSITORY_NAME }}-${{ runner.os }}
-      BUILT_BINARY_PATH: target/release/${{ env.REPOSITORY_NAME }}${{ runner.os == 'Windows' && '.exe' || '' }}
+        include:
+          - os: ubuntu-latest
+            binary-suffix: ""
+          - os: macos-latest
+            binary-suffix: ""
+          - os: windows-latest
+            binary-suffix: ".exe"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,11 +57,10 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ${{ env.BUILT_BINARY_PATH }}
+          name: ${{ env.PROJECT_NAME }}-${{ runner.os }}
+          path: target/release/${{ env.PROJECT_NAME }}${{ matrix.binary-suffix }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ env.ARTIFACT_NAME }}
-          subject-path: ${{ env.BUILT_BINARY_PATH }}
+          subject-path: target/release/${{ env.PROJECT_NAME }}${{ matrix.binary-suffix }}
