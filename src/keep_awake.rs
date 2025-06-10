@@ -24,6 +24,11 @@ impl KeepAwake for SystemKeepAwake {
         Ok(Self { inner })
     }
 
+    #[cfg(not(target_os = "windows"))]
+    fn new(_reason: &str) -> Result<Self, KeepAwakeError> {
+        Ok(Self { inner: () })
+    }
+
     #[cfg(target_os = "windows")]
     fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError> {
         if let Some(inner) = &mut self.inner {
@@ -32,11 +37,21 @@ impl KeepAwake for SystemKeepAwake {
         Ok(())
     }
 
+    #[cfg(not(target_os = "windows"))]
+    fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError> {
+        Ok(())
+    }
+
     #[cfg(target_os = "windows")]
     fn allow_sleep(&mut self) -> Result<(), KeepAwakeError> {
         if let Some(inner) = &mut self.inner {
             inner.allow_sleep()?;
         }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn allow_sleep(&mut self) -> Result<(), KeepAwakeError> {
         Ok(())
     }
 }
