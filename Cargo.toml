@@ -4,7 +4,6 @@ version = "0.0.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.98"
 base64 = "0.22.1"
 clap = { version = "4.5.40", features = ["derive"] }
 ed25519-dalek = "2.1.1"
