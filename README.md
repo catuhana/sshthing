@@ -45,7 +45,7 @@ For every artifact an attestation is created, so you know builds are not tampere
 ## Use
 
 ```
-Usage: sshthing.exe [OPTIONS] <KEYWORDS>...
+Usage: sshthing [OPTIONS] <KEYWORDS>...
 
 Arguments:
   <KEYWORDS>...  The keywords to search for in SSH fields
