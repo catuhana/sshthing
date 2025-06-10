@@ -9,9 +9,10 @@ Mass-generate Ed25519 SSH keys until a word is found in its fields (private/publ
 
 > [!TIP]
 > I would be grateful if you've contributed your benchmarks here!
-> 1. Run with `hello,this,is,averylongtext,withsomanyargumentsicanttakeitanymomre --all --all-keywords --all-fields` inputs
-> 2. Let it run for around 2-5 minutes
-> 3. Add the average keys/s below in the same format
+> 1. Close some *heavy* apps running in the background. Apps like Discord, or your browser and etc. is fine.
+> 2. Run with `hello,this,is,averylongtext,withsomanyargumentsicanttakeitanymomre --all --all-keywords --all-fields` inputs
+> 3. Let it run for around 2-5 minutes
+> 4. Add the average keys/s below in the same format
 
 On average, generates
 
@@ -27,6 +28,9 @@ per second.
 ```
 cargo install --git https://github.com/catuhana/sshthing
 ```
+
+> [!TIP]
+> To build against your CPU feature set, set `RUSTFLAGS` to `-Ctarget-cpu=native` before running the above command.
 
 ## Use
 
