@@ -68,10 +68,10 @@ fn main() -> Result<(), SshThingError> {
             std::thread::spawn(move || {
                 let mut thread_rng = ChaCha12Rng::from_os_rng();
 
-                while !handle_should_stop.load(std::sync::atomic::Ordering::SeqCst) {
+                while !handle_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
                     let generated_key =
                         key::Ed25519Key::new_from_secret_key(thread_rng.random::<[u8; 32]>());
-                    handle_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    handle_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
                     if generated_key.matches_search(
                         &keywords,
@@ -96,10 +96,10 @@ fn main() -> Result<(), SshThingError> {
 
         let start_instant = last_instant;
 
-        while !status_should_stop.load(std::sync::atomic::Ordering::SeqCst) {
+        while !status_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
             std::thread::sleep(std::time::Duration::from_secs(1));
 
-            let current_count = status_counter.load(std::sync::atomic::Ordering::SeqCst);
+            let current_count = status_counter.load(std::sync::atomic::Ordering::Relaxed);
             let current_instant = std::time::Instant::now();
             let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
             let total_elapsed = current_instant.duration_since(start_instant).as_secs_f64();
@@ -120,7 +120,7 @@ fn main() -> Result<(), SshThingError> {
     if let Ok(found_key) = key_rx.recv() {
         println!(
             "\nMatching key found after generating {} keys!",
-            generated_keys_counter.load(std::sync::atomic::Ordering::SeqCst)
+            generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed)
         );
 
         println!(
@@ -140,10 +140,10 @@ fn main() -> Result<(), SshThingError> {
     } else {
         println!(
             "\nNo matching key found after generating {} keys.",
-            generated_keys_counter.load(std::sync::atomic::Ordering::SeqCst)
+            generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed)
         );
     }
-    should_stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
     for generator in generator_handles {
         let _ = generator.join();
