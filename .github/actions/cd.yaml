@@ -1,0 +1,66 @@
+name: CD
+
+on:
+  push:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/src/**"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Dispatch reason
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-upload:
+    name: Build and Upload to Artifacts
+    runs-on: ${{ matrix.os }}
+    permissions:
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    env:
+      REPOSITORY_NAME: ${{ github.event.repository.name }}
+      ARTIFACT_NAME: ${{ env.REPOSITORY_NAME }}-${{ runner.os }}
+      BUILT_BINARY_PATH: target/release/${{ env.REPOSITORY_NAME }}${{ runner.os == 'Windows' && '.exe' || '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set-up or update Rust toolchain
+        run: rustup toolchain install stable --profile default
+
+      - name: Set-up Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target/
+          key: ${{ runner.os }}-cargo-stable-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build project
+        run: cargo build --verbose --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.BUILT_BINARY_PATH }}
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.ARTIFACT_NAME }}
+          subject-path: ${{ env.BUILT_BINARY_PATH }}
