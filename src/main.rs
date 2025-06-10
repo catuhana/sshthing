@@ -129,7 +129,7 @@ fn main() -> Result<(), SshThingError> {
             found_key.get_key_info().sha512_fingerprint
         );
 
-        std::fs::create_dir_all("generated").map_err(|error| SshThingError::Io(error))?;
+        std::fs::create_dir_all("generated").map_err(SshThingError::Io)?;
         found_key.write_openssh_public(&mut std::fs::File::create("generated/id_ed25519.pub")?)?;
         found_key.write_openssh_private(&mut std::fs::File::create("generated/id_ed25519")?)?;
 
