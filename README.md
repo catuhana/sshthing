@@ -26,12 +26,21 @@ per second.
 
 ## Install
 
+### Using Cargo
+
 ```
 cargo install --git https://github.com/catuhana/sshthing
 ```
 
 > [!TIP]
 > To build against your CPU feature set, set `RUSTFLAGS` to `-Ctarget-cpu=native` before running the above command.
+
+### [From GitHub Actions Artifacts](https://github.com/catuhana/sshthing/actions)
+
+For every artifact an attestation is created, so you know builds are not tampered with.
+
+> [!NOTE]
+> Builds from GitHub Actions are not optimised for any specific CPU, so they will be slower than building it yourself with `RUSTFLAG`.
 
 ## Use
 
