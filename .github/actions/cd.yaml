@@ -3,9 +3,10 @@ name: CD
 on:
   push:
     paths:
-      - "**/Cargo.toml"
-      - "**/Cargo.lock"
+      - ".github/workflows/cd.yaml"
       - "**/src/**"
+      - "**/Cargo.lock"
+      - "**/Cargo.toml"
   workflow_dispatch:
     inputs:
       reason:
