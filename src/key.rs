@@ -3,6 +3,7 @@
 use base64::Engine;
 use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256, Sha512};
+use smallvec::SmallVec;
 
 use crate::errors::KeyError;
 
@@ -88,8 +89,9 @@ impl Ed25519Key {
         }
     }
 
-    fn generate_public_key_wire(&self) -> Vec<u8> {
-        let mut public_key_wire = Vec::with_capacity(Self::SSH_PUBLIC_KEY_WIRE_SIZE);
+    fn generate_public_key_wire(&self) -> SmallVec<[u8; Self::SSH_PUBLIC_KEY_WIRE_SIZE]> {
+        let mut public_key_wire: SmallVec<[u8; Self::SSH_PUBLIC_KEY_WIRE_SIZE]> =
+            SmallVec::new_const();
 
         public_key_wire.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
         public_key_wire.extend_from_slice(Self::SSH_KEY_TYPE);
@@ -138,7 +140,8 @@ impl Ed25519Key {
     }
 
     pub fn generate_private_key_openssh(&self) -> String {
-        let mut buffer = Vec::with_capacity(Self::OPENSSH_PRIVATE_KEY_BUFFER_SIZE);
+        let mut buffer: SmallVec<[u8; Self::OPENSSH_PRIVATE_KEY_BUFFER_SIZE]> =
+            SmallVec::new_const();
 
         // Write OpenSSH private key format magic header
         buffer.extend_from_slice(Self::OPENSSH_AUTH_MAGIC);
@@ -216,7 +219,7 @@ impl Ed25519Key {
         all_keywords: bool,
         all_fields: bool,
     ) -> bool {
-        let mut sorted_fields: Vec<_> = fields.iter().collect();
+        let mut sorted_fields: SmallVec<[&crate::cli::SearchField; 4]> = fields.iter().collect();
         sorted_fields.sort_by_key(|field| match field {
             crate::cli::SearchField::Sha256Fingerprint => 0,
             crate::cli::SearchField::Sha512Fingerprint => 1,
@@ -284,7 +287,8 @@ impl Ed25519Key {
     fn optimized_large_string_search(text: &str, keywords: &[String], all_keywords: bool) -> bool {
         let text_bytes = text.as_bytes();
 
-        let mut keyword_refs: Vec<_> = keywords.iter().collect();
+        // Let's assume max of 8 keywords
+        let mut keyword_refs: SmallVec<[&String; 8]> = keywords.iter().collect();
         keyword_refs.sort_by_key(|k| k.len());
 
         if all_keywords {
