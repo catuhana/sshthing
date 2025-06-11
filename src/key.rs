@@ -1,5 +1,3 @@
-// Parts of this code is written by Claude Sonnet 4.
-
 use base64::Engine;
 use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256, Sha512};
