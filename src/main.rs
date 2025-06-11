@@ -125,11 +125,11 @@ fn main() -> Result<(), SshThingError> {
 
         println!(
             "SHA256 fingerprint: {}",
-            found_key.get_key_info().sha256_fingerprint
+            found_key.generate_sha256_fingerprint()
         );
         println!(
             "SHA512 fingerprint: {}",
-            found_key.get_key_info().sha512_fingerprint
+            found_key.generate_sha512_fingerprint()
         );
 
         std::fs::create_dir_all("generated").map_err(SshThingError::Io)?;

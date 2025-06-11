@@ -1,7 +1,5 @@
 // Parts of this code is written by Claude Sonnet 4.
 
-use std::sync::OnceLock;
-
 use base64::Engine;
 use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256, Sha512};
@@ -11,15 +9,6 @@ use crate::errors::KeyError;
 pub struct Ed25519Key {
     pub signing_key: SigningKey,
     pub verifying_key: VerifyingKey,
-    pub key_info: OnceLock<KeyInfo>,
-}
-
-#[derive(Debug)]
-pub struct KeyInfo {
-    pub private_key_openssh: String,
-    pub public_key_openssh: String,
-    pub sha256_fingerprint: String,
-    pub sha512_fingerprint: String,
 }
 
 impl Ed25519Key {
@@ -96,61 +85,128 @@ impl Ed25519Key {
         Self {
             signing_key,
             verifying_key,
-            key_info: OnceLock::default(),
         }
     }
 
-    pub fn get_key_info(&self) -> &KeyInfo {
-        self.key_info.get_or_init(|| {
-            let mut private_key_buffer =
-                Vec::with_capacity(Self::estimated_private_key_output_size());
-            let mut public_key_buffer =
-                Vec::with_capacity(Self::estimated_public_key_output_size());
-
-            unsafe {
-                self.write_openssh_private(&mut private_key_buffer)
-                    .unwrap_unchecked();
-                self.write_openssh_public(&mut public_key_buffer)
-                    .unwrap_unchecked();
-            }
-
-            let private_key_openssh = unsafe { String::from_utf8_unchecked(private_key_buffer) };
-            let public_key_openssh = unsafe { String::from_utf8_unchecked(public_key_buffer) };
-
-            let (sha256_fingerprint, sha512_fingerprint) = self.generate_fingerprints();
-
-            KeyInfo {
-                private_key_openssh,
-                public_key_openssh,
-                sha256_fingerprint,
-                sha512_fingerprint,
-            }
-        })
-    }
-
-    pub fn generate_fingerprints(&self) -> (String, String) {
+    fn generate_public_key_wire(&self) -> Vec<u8> {
         let mut public_key_wire = Vec::with_capacity(Self::SSH_PUBLIC_KEY_WIRE_SIZE);
+
         public_key_wire.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
         public_key_wire.extend_from_slice(Self::SSH_KEY_TYPE);
         public_key_wire.extend_from_slice(&Self::ED25519_PUBLIC_KEY_LENGTH_BYTES);
         public_key_wire.extend_from_slice(self.verifying_key.as_bytes());
 
-        let mut sha256_hasher = Sha256::new();
-        let mut sha512_hasher = Sha512::new();
+        public_key_wire
+    }
 
-        sha256_hasher.update(&public_key_wire);
-        sha512_hasher.update(&public_key_wire);
+    pub fn generate_sha256_fingerprint(&self) -> String {
+        let public_key_wire = self.generate_public_key_wire();
 
-        let sha256_hash = sha256_hasher.finalize();
-        let sha512_hash = sha512_hasher.finalize();
+        let mut hasher = Sha256::new();
+        hasher.update(&public_key_wire);
+        let hash = hasher.finalize();
 
-        let mut sha256_output = String::with_capacity(44);
-        let mut sha512_output = String::with_capacity(88);
+        // Omit the trailing padding
+        let mut output = String::with_capacity(43);
+        base64::engine::general_purpose::STANDARD.encode_string(hash, &mut output);
 
-        base64::engine::general_purpose::STANDARD.encode_string(sha256_hash, &mut sha256_output);
-        base64::engine::general_purpose::STANDARD.encode_string(sha512_hash, &mut sha512_output);
+        output
+    }
 
-        (sha256_output, sha512_output)
+    pub fn generate_sha512_fingerprint(&self) -> String {
+        let public_key_wire = self.generate_public_key_wire();
+
+        let mut hasher = Sha512::new();
+        hasher.update(&public_key_wire);
+        let hash = hasher.finalize();
+
+        // Omit the trailing padding
+        let mut output = String::with_capacity(86);
+        base64::engine::general_purpose::STANDARD.encode_string(hash, &mut output);
+
+        output
+    }
+
+    pub fn generate_public_key_openssh(&self) -> String {
+        let buffer = self.generate_public_key_wire();
+
+        let mut result = String::with_capacity(Self::estimated_public_key_output_size());
+        result.push_str("ssh-ed25519 ");
+        base64::engine::general_purpose::STANDARD.encode_string(&buffer, &mut result);
+
+        result
+    }
+
+    pub fn generate_private_key_openssh(&self) -> String {
+        let mut buffer = Vec::with_capacity(Self::OPENSSH_PRIVATE_KEY_BUFFER_SIZE);
+
+        // Write OpenSSH private key format magic header
+        buffer.extend_from_slice(Self::OPENSSH_AUTH_MAGIC);
+
+        // Write cipher name length and "none" (no encryption)
+        buffer.extend_from_slice(&Self::OPENSSH_CIPHER_NONE_LEN_BYTES);
+        buffer.extend_from_slice(Self::OPENSSH_CIPHER_NONE);
+
+        // Write KDF name length and "none" (no key derivation function)
+        buffer.extend_from_slice(&Self::OPENSSH_KDF_NONE_LEN_BYTES);
+        buffer.extend_from_slice(Self::OPENSSH_KDF_NONE);
+
+        // Write KDF options length (0 - no KDF options)
+        buffer.extend_from_slice(&Self::ZERO_U32_BYTES);
+
+        // Write number of keys (1 - single key file)
+        buffer.extend_from_slice(&Self::ONE_U32_BYTES);
+
+        // === PUBLIC KEY SECTION ===
+        // Write public key section length
+        buffer.extend_from_slice(&Self::SSH_PUBLIC_KEY_WIRE_SIZE_BYTES);
+        // Write key type length and "ssh-ed25519"
+        buffer.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
+        buffer.extend_from_slice(Self::SSH_KEY_TYPE);
+        // Write public key length (32 bytes) and the actual public key
+        buffer.extend_from_slice(&Self::ED25519_PUBLIC_KEY_LENGTH_BYTES);
+        buffer.extend_from_slice(self.verifying_key.as_bytes());
+
+        // === PRIVATE KEY SECTION ===
+        // Write private section length (including padding)
+        buffer.extend_from_slice(&Self::OPENSSH_PRIVATE_SECTION_PADDED_SIZE_BYTES);
+
+        // Write check integers (used to verify successful decryption - same value twice)
+        buffer.extend_from_slice(&Self::OPENSSH_CHECK_INT_BYTES);
+        buffer.extend_from_slice(&Self::OPENSSH_CHECK_INT_BYTES);
+
+        // Write key type length and "ssh-ed25519" again
+        buffer.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
+        buffer.extend_from_slice(Self::SSH_KEY_TYPE);
+
+        // Write public key length and public key (duplicated from above)
+        buffer.extend_from_slice(&Self::ED25519_PUBLIC_KEY_LENGTH_BYTES);
+        buffer.extend_from_slice(self.verifying_key.as_bytes());
+
+        // Write private key length (64 bytes: 32 private + 32 public concatenated)
+        buffer.extend_from_slice(&Self::ED25519_SIGNATURE_SIZE.to_be_bytes());
+        // Write 32-byte private key followed by 32-byte public key
+        buffer.extend_from_slice(self.signing_key.as_bytes());
+        buffer.extend_from_slice(self.verifying_key.as_bytes());
+
+        // Write comment length and comment (empty by default)
+        buffer.extend_from_slice(&Self::OPENSSH_DEFAULT_COMMENT_LEN_BYTES);
+        buffer.extend_from_slice(Self::OPENSSH_DEFAULT_COMMENT);
+
+        // Add padding bytes (1, 2, 3, ...) to align private section to 8-byte boundary
+        buffer.extend_from_slice(&Self::PADDING_SEQUENCE[..Self::OPENSSH_PADDING_LENGTH]);
+
+        let mut result = String::with_capacity(Self::estimated_private_key_output_size());
+        result.push_str("-----BEGIN OPENSSH PRIVATE KEY-----\n");
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&buffer);
+        for chunk in encoded.as_bytes().chunks(70) {
+            unsafe {
+                result.push_str(std::str::from_utf8_unchecked(chunk));
+            }
+            result.push('\n');
+        }
+        result.push_str("-----END OPENSSH PRIVATE KEY-----\n");
+        result
     }
 
     pub fn matches_search(
@@ -160,8 +216,6 @@ impl Ed25519Key {
         all_keywords: bool,
         all_fields: bool,
     ) -> bool {
-        let key_info = self.get_key_info();
-
         let mut sorted_fields: Vec<_> = fields.iter().collect();
         sorted_fields.sort_by_key(|field| match field {
             crate::cli::SearchField::Sha256Fingerprint => 0,
@@ -174,17 +228,23 @@ impl Ed25519Key {
 
         for &field in &sorted_fields {
             let field_matches = match field {
-                crate::cli::SearchField::Sha256Fingerprint => {
-                    Self::fast_keyword_search(&key_info.sha256_fingerprint, keywords, all_keywords)
-                }
-                crate::cli::SearchField::Sha512Fingerprint => {
-                    Self::fast_keyword_search(&key_info.sha512_fingerprint, keywords, all_keywords)
-                }
-                crate::cli::SearchField::PublicKey => {
-                    Self::fast_keyword_search(&key_info.public_key_openssh, keywords, all_keywords)
-                }
+                crate::cli::SearchField::Sha256Fingerprint => Self::fast_keyword_search(
+                    &self.generate_sha256_fingerprint(),
+                    keywords,
+                    all_keywords,
+                ),
+                crate::cli::SearchField::Sha512Fingerprint => Self::fast_keyword_search(
+                    &self.generate_sha512_fingerprint(),
+                    keywords,
+                    all_keywords,
+                ),
+                crate::cli::SearchField::PublicKey => Self::fast_keyword_search(
+                    &self.generate_public_key_openssh(),
+                    keywords,
+                    all_keywords,
+                ),
                 crate::cli::SearchField::PrivateKey => Self::optimized_large_string_search(
-                    &key_info.private_key_openssh,
+                    &self.generate_private_key_openssh(),
                     keywords,
                     all_keywords,
                 ),
@@ -254,100 +314,11 @@ impl Ed25519Key {
     }
 
     pub fn write_openssh_public<W: std::io::Write>(&self, writer: &mut W) -> Result<(), KeyError> {
-        let mut buffer = Vec::with_capacity(Self::SSH_PUBLIC_KEY_WIRE_SIZE);
-
-        // Write the length of the key type string (4 bytes, big-endian)
-        buffer.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
-        // Write the key type string "ssh-ed25519"
-        buffer.extend_from_slice(Self::SSH_KEY_TYPE);
-        // Write the length of the public key (32 bytes, big-endian)
-        buffer.extend_from_slice(&Self::ED25519_PUBLIC_KEY_LENGTH_BYTES);
-        // Write the actual 32-byte Ed25519 public key
-        buffer.extend_from_slice(self.verifying_key.as_bytes());
-
-        writer
-            .write_all(b"ssh-ed25519 ")
-            .map_err(KeyError::WriteKeyPart)?;
-        let encoded = base64::engine::general_purpose::STANDARD.encode(&buffer);
-        writer
-            .write_all(encoded.as_bytes())
-            .map_err(KeyError::WriteKeyPart)?;
-
-        Ok(())
+        Ok(writer.write_all(self.generate_public_key_openssh().as_bytes())?)
     }
 
     pub fn write_openssh_private<W: std::io::Write>(&self, writer: &mut W) -> Result<(), KeyError> {
-        let mut buffer = Vec::with_capacity(Self::OPENSSH_PRIVATE_KEY_BUFFER_SIZE);
-
-        // Write OpenSSH private key format magic header
-        buffer.extend_from_slice(Self::OPENSSH_AUTH_MAGIC);
-
-        // Write cipher name length and "none" (no encryption)
-        buffer.extend_from_slice(&Self::OPENSSH_CIPHER_NONE_LEN_BYTES);
-        buffer.extend_from_slice(Self::OPENSSH_CIPHER_NONE);
-
-        // Write KDF name length and "none" (no key derivation function)
-        buffer.extend_from_slice(&Self::OPENSSH_KDF_NONE_LEN_BYTES);
-        buffer.extend_from_slice(Self::OPENSSH_KDF_NONE);
-
-        // Write KDF options length (0 - no KDF options)
-        buffer.extend_from_slice(&Self::ZERO_U32_BYTES);
-
-        // Write number of keys (1 - single key file)
-        buffer.extend_from_slice(&Self::ONE_U32_BYTES);
-
-        // === PUBLIC KEY SECTION ===
-        // Write public key section length
-        buffer.extend_from_slice(&Self::SSH_PUBLIC_KEY_WIRE_SIZE_BYTES);
-        // Write key type length and "ssh-ed25519"
-        buffer.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
-        buffer.extend_from_slice(Self::SSH_KEY_TYPE);
-        // Write public key length (32 bytes) and the actual public key
-        buffer.extend_from_slice(&Self::ED25519_PUBLIC_KEY_LENGTH_BYTES);
-        buffer.extend_from_slice(self.verifying_key.as_bytes());
-
-        // === PRIVATE KEY SECTION ===
-        // Write private section length (including padding)
-        buffer.extend_from_slice(&Self::OPENSSH_PRIVATE_SECTION_PADDED_SIZE_BYTES);
-
-        // Write check integers (used to verify successful decryption - same value twice)
-        buffer.extend_from_slice(&Self::OPENSSH_CHECK_INT_BYTES);
-        buffer.extend_from_slice(&Self::OPENSSH_CHECK_INT_BYTES);
-
-        // Write key type length and "ssh-ed25519" again
-        buffer.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
-        buffer.extend_from_slice(Self::SSH_KEY_TYPE);
-
-        // Write public key length and public key (duplicated from above)
-        buffer.extend_from_slice(&Self::ED25519_PUBLIC_KEY_LENGTH_BYTES);
-        buffer.extend_from_slice(self.verifying_key.as_bytes());
-
-        // Write private key length (64 bytes: 32 private + 32 public concatenated)
-        buffer.extend_from_slice(&Self::ED25519_SIGNATURE_SIZE.to_be_bytes());
-        // Write 32-byte private key followed by 32-byte public key
-        buffer.extend_from_slice(self.signing_key.as_bytes());
-        buffer.extend_from_slice(self.verifying_key.as_bytes());
-
-        // Write comment length and comment (empty by default)
-        buffer.extend_from_slice(&Self::OPENSSH_DEFAULT_COMMENT_LEN_BYTES);
-        buffer.extend_from_slice(Self::OPENSSH_DEFAULT_COMMENT);
-
-        // Add padding bytes (1, 2, 3, ...) to align private section to 8-byte boundary
-        buffer.extend_from_slice(&Self::PADDING_SEQUENCE[..Self::OPENSSH_PADDING_LENGTH]);
-
-        writer
-            .write_all(b"-----BEGIN OPENSSH PRIVATE KEY-----\n")
-            .map_err(KeyError::WriteKeyPart)?;
-        let encoded = base64::engine::general_purpose::STANDARD.encode(&buffer);
-        for chunk in encoded.as_bytes().chunks(70) {
-            writer.write_all(chunk).map_err(KeyError::WriteKeyPart)?;
-            writer.write_all(b"\n").map_err(KeyError::WriteKeyPart)?;
-        }
-        writer
-            .write_all(b"-----END OPENSSH PRIVATE KEY-----\n")
-            .map_err(KeyError::WriteKeyPart)?;
-
-        Ok(())
+        Ok(writer.write_all(self.generate_private_key_openssh().as_bytes())?)
     }
 
     const fn estimated_public_key_output_size() -> usize {
