@@ -108,7 +108,7 @@ impl Ed25519Key {
 
         // Omit the trailing padding
         let mut output = String::with_capacity(43);
-        base64::engine::general_purpose::STANDARD.encode_string(hash, &mut output);
+        base64::engine::general_purpose::STANDARD_NO_PAD.encode_string(hash, &mut output);
 
         output
     }
@@ -122,7 +122,7 @@ impl Ed25519Key {
 
         // Omit the trailing padding
         let mut output = String::with_capacity(86);
-        base64::engine::general_purpose::STANDARD.encode_string(hash, &mut output);
+        base64::engine::general_purpose::STANDARD_NO_PAD.encode_string(hash, &mut output);
 
         output
     }
@@ -132,7 +132,7 @@ impl Ed25519Key {
 
         let mut result = String::with_capacity(Self::estimated_public_key_output_size());
         result.push_str("ssh-ed25519 ");
-        base64::engine::general_purpose::STANDARD.encode_string(&buffer, &mut result);
+        base64::engine::general_purpose::STANDARD_NO_PAD.encode_string(&buffer, &mut result);
 
         result
     }
@@ -199,7 +199,7 @@ impl Ed25519Key {
 
         let mut result = String::with_capacity(Self::estimated_private_key_output_size());
         result.push_str("-----BEGIN OPENSSH PRIVATE KEY-----\n");
-        let encoded = base64::engine::general_purpose::STANDARD.encode(&buffer);
+        let encoded = base64::engine::general_purpose::STANDARD_NO_PAD.encode(&buffer);
         for chunk in encoded.as_bytes().chunks(70) {
             unsafe {
                 result.push_str(std::str::from_utf8_unchecked(chunk));
