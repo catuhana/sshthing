@@ -89,7 +89,6 @@ impl Ed25519Key {
     // Pre-computed padding sequence
     const PADDING_SEQUENCE: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
 
-    #[inline]
     pub fn new_from_secret_key(secret_key: SecretKey) -> Self {
         let signing_key = SigningKey::from(secret_key);
         let verifying_key = signing_key.verifying_key();
@@ -208,7 +207,6 @@ impl Ed25519Key {
         }
     }
 
-    #[inline]
     fn fast_keyword_search(text: &str, keywords: &[String], all_keywords: bool) -> bool {
         let text_bytes = text.as_bytes();
 
@@ -223,7 +221,6 @@ impl Ed25519Key {
         }
     }
 
-    #[inline]
     fn optimized_large_string_search(text: &str, keywords: &[String], all_keywords: bool) -> bool {
         let text_bytes = text.as_bytes();
 
@@ -241,7 +238,6 @@ impl Ed25519Key {
         }
     }
 
-    #[inline]
     fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
         if needle.is_empty() {
             return true;
@@ -257,7 +253,6 @@ impl Ed25519Key {
         memchr::memmem::find(haystack, needle).is_some()
     }
 
-    #[inline]
     pub fn write_openssh_public<W: std::io::Write>(&self, writer: &mut W) -> Result<(), KeyError> {
         let mut buffer = Vec::with_capacity(Self::SSH_PUBLIC_KEY_WIRE_SIZE);
 
@@ -281,7 +276,6 @@ impl Ed25519Key {
         Ok(())
     }
 
-    #[inline]
     pub fn write_openssh_private<W: std::io::Write>(&self, writer: &mut W) -> Result<(), KeyError> {
         let mut buffer = Vec::with_capacity(Self::OPENSSH_PRIVATE_KEY_BUFFER_SIZE);
 
