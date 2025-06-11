@@ -39,12 +39,12 @@ fn main() -> Result<(), SshThingError> {
     println!("========================");
     println!("Starting SSH key generation...");
 
-    let mut keep_awake = if !cli.no_keep_awake {
+    let mut keep_awake = if cli.no_keep_awake {
+        None
+    } else {
         Some(keep_awake::SystemKeepAwake::new(
             "sshthing is generating keys",
         )?)
-    } else {
-        None
     };
     if let Some(ref mut ka) = keep_awake {
         ka.prevent_sleep()?;
