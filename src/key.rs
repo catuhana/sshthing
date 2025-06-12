@@ -93,6 +93,7 @@ impl Ed25519Key {
 
         public_key_wire.extend_from_slice(&Self::SSH_KEY_TYPE_LENGTH_BYTES);
         public_key_wire.extend_from_slice(Self::SSH_KEY_TYPE);
+
         public_key_wire.extend_from_slice(&Self::ED25519_PUBLIC_KEY_LENGTH_BYTES);
         public_key_wire.extend_from_slice(self.verifying_key.as_bytes());
 
@@ -102,13 +103,10 @@ impl Ed25519Key {
     pub fn generate_sha256_fingerprint(&self) -> String {
         let public_key_wire = self.generate_public_key_wire();
 
-        let mut hasher = Sha256::new();
-        hasher.update(&public_key_wire);
-        let hash = hasher.finalize();
-
         // Omit the trailing padding
         let mut output = String::with_capacity(43);
-        base64::engine::general_purpose::STANDARD_NO_PAD.encode_string(hash, &mut output);
+        base64::engine::general_purpose::STANDARD_NO_PAD
+            .encode_string(Sha256::digest(&public_key_wire), &mut output);
 
         output
     }
@@ -116,9 +114,7 @@ impl Ed25519Key {
     pub fn generate_sha512_fingerprint(&self) -> String {
         let public_key_wire = self.generate_public_key_wire();
 
-        let mut hasher = Sha512::new();
-        hasher.update(&public_key_wire);
-        let hash = hasher.finalize();
+        let hash = Sha512::digest(&public_key_wire);
 
         // Omit the trailing padding
         let mut output = String::with_capacity(86);
