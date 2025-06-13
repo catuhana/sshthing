@@ -51,14 +51,12 @@ fn main() -> Result<(), SshThingError> {
     }
 
     let generated_keys_counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let should_stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (key_tx, key_rx) = std::sync::mpsc::channel::<key::Ed25519Key>();
 
     let generator_handles: Vec<_> = (0..cli.threads)
         .map(|index| {
             let handle_counter = std::sync::Arc::clone(&generated_keys_counter);
             let handle_key_tx = key_tx.clone();
-            let handle_should_stop = std::sync::Arc::clone(&should_stop);
 
             let keywords = cli.keywords.clone();
             let search_fields = search_fields.clone();
@@ -70,7 +68,7 @@ fn main() -> Result<(), SshThingError> {
                 .spawn(move || {
                     let mut thread_rng = ChaCha12Rng::from_os_rng();
 
-                    while !handle_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    loop {
                         let generated_key =
                             key::Ed25519Key::new_from_secret_key(thread_rng.random::<[u8; 32]>());
                         handle_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -89,18 +87,28 @@ fn main() -> Result<(), SshThingError> {
         })
         .collect();
 
-    let status_counter = std::sync::Arc::clone(&generated_keys_counter);
-    let status_should_stop = std::sync::Arc::clone(&should_stop);
-    let status_handle = std::thread::Builder::new()
-        .name("status-logger".to_owned())
-        .spawn(move || {
-            let mut last_count = 0;
-            let mut last_instant = std::time::Instant::now();
+    // Drop the original sender so only the generator threads hold senders
+    drop(key_tx);
 
-            let start_instant = last_instant;
+    // Status reporting loop integrated into main thread
+    let mut last_count = 0;
+    let mut last_instant = std::time::Instant::now();
+    let start_instant = last_instant;
 
-            while !status_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
-                let current_count = status_counter.load(std::sync::atomic::Ordering::Relaxed);
+    let found_key = loop {
+        // Try to receive a key with a timeout for status updates
+        match key_rx.recv_timeout(std::time::Duration::from_millis(300)) {
+            Ok(found_key) => {
+                // Key found! Break out of the loop
+                break Some(found_key);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                // All generator threads finished without finding a key
+                break None;
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // No key yet, update status and continue
+                let current_count = generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed);
                 let current_instant = std::time::Instant::now();
 
                 let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
@@ -117,12 +125,11 @@ fn main() -> Result<(), SshThingError> {
 
                 last_count = current_count;
                 last_instant = current_instant;
-
-                std::thread::sleep(std::time::Duration::from_millis(300));
+            }
         }
-    });
+    };
 
-    if let Ok(found_key) = key_rx.recv() {
+    if let Some(found_key) = found_key {
         println!(
             "\n\nMatching key found after generating {} keys!",
             generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed)
@@ -148,12 +155,10 @@ fn main() -> Result<(), SshThingError> {
             generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed)
         );
     }
-    should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
     for generator in generator_handles {
         let _ = generator?.join();
     }
-    let _ = status_handle?.join();
 
     println!("\nKey generation completed.");
 
