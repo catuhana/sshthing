@@ -101,8 +101,6 @@ fn main() -> Result<(), SshThingError> {
             let start_instant = last_instant;
 
             while !status_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
-                std::thread::sleep(std::time::Duration::from_secs(1));
-
                 let current_count = status_counter.load(std::sync::atomic::Ordering::Relaxed);
                 let current_instant = std::time::Instant::now();
                 let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
@@ -118,6 +116,8 @@ fn main() -> Result<(), SshThingError> {
 
                 last_count = current_count;
                 last_instant = current_instant;
+
+                std::thread::sleep(std::time::Duration::from_secs(1));
         }
     });
 
