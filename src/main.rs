@@ -88,7 +88,6 @@ fn main() -> Result<(), SshThingError> {
                 })
         })
         .collect();
-    std::mem::drop(key_tx);
 
     let status_counter = std::sync::Arc::clone(&generated_keys_counter);
     let status_should_stop = std::sync::Arc::clone(&should_stop);
@@ -103,27 +102,29 @@ fn main() -> Result<(), SshThingError> {
             while !status_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
                 let current_count = status_counter.load(std::sync::atomic::Ordering::Relaxed);
                 let current_instant = std::time::Instant::now();
+
                 let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
                 let total_elapsed = current_instant.duration_since(start_instant).as_secs_f64();
 
                 let generated_keys_per_second = (current_count - last_count) as f64 / elapsed;
                 let average_keys_per_second = current_count as f64 / total_elapsed;
 
+                print!("\r\x1b[K");
                 print!(
-                    "\rGenerated keys: {current_count} ({generated_keys_per_second:.2} keys/s, avg: {average_keys_per_second:.2} keys/s)"
+                    "Generated keys: {current_count} ({generated_keys_per_second:.2} keys/s, avg: {average_keys_per_second:.2} keys/s)"
                 );
                 let _ = std::io::stdout().flush();
 
                 last_count = current_count;
                 last_instant = current_instant;
 
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                std::thread::sleep(std::time::Duration::from_millis(300));
         }
     });
 
     if let Ok(found_key) = key_rx.recv() {
         println!(
-            "\nMatching key found after generating {} keys!",
+            "\n\nMatching key found after generating {} keys!",
             generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed)
         );
 
@@ -136,14 +137,14 @@ fn main() -> Result<(), SshThingError> {
             found_key.generate_sha512_fingerprint()
         );
 
-        std::fs::create_dir_all("generated").map_err(SshThingError::Io)?;
+        std::fs::create_dir_all("generated")?;
         found_key.write_openssh_public(&mut std::fs::File::create("generated/id_ed25519.pub")?)?;
         found_key.write_openssh_private(&mut std::fs::File::create("generated/id_ed25519")?)?;
 
         println!("Saved private and public keys to 'generated' directory.");
     } else {
         println!(
-            "\nNo matching key found after generating {} keys.",
+            "\n\nNo matching key found after generating {} keys.",
             generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed)
         );
     }
