@@ -55,7 +55,7 @@ fn main() -> Result<(), SshThingError> {
     let (key_tx, key_rx) = std::sync::mpsc::channel::<key::Ed25519Key>();
 
     let generator_handles: Vec<_> = (0..cli.threads)
-        .map(|_| {
+        .map(|index| {
             let handle_counter = std::sync::Arc::clone(&generated_keys_counter);
             let handle_key_tx = key_tx.clone();
             let handle_should_stop = std::sync::Arc::clone(&should_stop);
@@ -65,25 +65,28 @@ fn main() -> Result<(), SshThingError> {
             let search_all_keywords = cli.requires_all_keywords();
             let search_all_fields = cli.requires_all_fields();
 
-            std::thread::spawn(move || {
-                let mut thread_rng = ChaCha12Rng::from_os_rng();
+            std::thread::Builder::new()
+                .name(format!("generator-{index}"))
+                .spawn(move || {
+                    let mut thread_rng = ChaCha12Rng::from_os_rng();
 
-                while !handle_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
-                    let generated_key =
-                        key::Ed25519Key::new_from_secret_key(thread_rng.random::<[u8; 32]>());
-                    handle_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    while !handle_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                        let generated_key =
+                            key::Ed25519Key::new_from_secret_key(thread_rng.random::<[u8; 32]>());
+                        handle_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-                    if generated_key.matches_search(
-                        &keywords,
-                        &search_fields,
-                        search_all_keywords,
-                        search_all_fields,
-                    ) {
-                        let _ = handle_key_tx.send(generated_key);
-                        break;
+                        if generated_key.matches_search(
+                            &keywords,
+                            &search_fields,
+                            search_all_keywords,
+                            search_all_fields,
+                        ) {
+                            let _ = handle_key_tx.send(generated_key);
+                            break;
+                        }
                     }
-                }
-            })
+                })
+                .expect("Failed to spawn key generator thread")
         })
         .collect();
     std::mem::drop(key_tx);
