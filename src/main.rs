@@ -86,37 +86,38 @@ fn main() -> Result<(), SshThingError> {
                         }
                     }
                 })
-                .expect("Failed to spawn key generator thread")
         })
         .collect();
     std::mem::drop(key_tx);
 
     let status_counter = std::sync::Arc::clone(&generated_keys_counter);
     let status_should_stop = std::sync::Arc::clone(&should_stop);
-    let status_handle = std::thread::spawn(move || {
-        let mut last_count = 0;
-        let mut last_instant = std::time::Instant::now();
+    let status_handle = std::thread::Builder::new()
+        .name("status-logger".to_owned())
+        .spawn(move || {
+            let mut last_count = 0;
+            let mut last_instant = std::time::Instant::now();
 
-        let start_instant = last_instant;
+            let start_instant = last_instant;
 
-        while !status_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            while !status_should_stop.load(std::sync::atomic::Ordering::Relaxed) {
+                std::thread::sleep(std::time::Duration::from_secs(1));
 
-            let current_count = status_counter.load(std::sync::atomic::Ordering::Relaxed);
-            let current_instant = std::time::Instant::now();
-            let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
-            let total_elapsed = current_instant.duration_since(start_instant).as_secs_f64();
+                let current_count = status_counter.load(std::sync::atomic::Ordering::Relaxed);
+                let current_instant = std::time::Instant::now();
+                let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
+                let total_elapsed = current_instant.duration_since(start_instant).as_secs_f64();
 
-            let generated_keys_per_second = (current_count - last_count) as f64 / elapsed;
-            let average_keys_per_second = current_count as f64 / total_elapsed;
+                let generated_keys_per_second = (current_count - last_count) as f64 / elapsed;
+                let average_keys_per_second = current_count as f64 / total_elapsed;
 
-            print!(
-                "\rGenerated keys: {current_count} ({generated_keys_per_second:.2} keys/s, avg: {average_keys_per_second:.2} keys/s)"
-            );
-            let _ = std::io::stdout().flush();
+                print!(
+                    "\rGenerated keys: {current_count} ({generated_keys_per_second:.2} keys/s, avg: {average_keys_per_second:.2} keys/s)"
+                );
+                let _ = std::io::stdout().flush();
 
-            last_count = current_count;
-            last_instant = current_instant;
+                last_count = current_count;
+                last_instant = current_instant;
         }
     });
 
@@ -149,9 +150,9 @@ fn main() -> Result<(), SshThingError> {
     should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
 
     for generator in generator_handles {
-        let _ = generator.join();
+        let _ = generator?.join();
     }
-    let _ = status_handle.join();
+    let _ = status_handle?.join();
 
     println!("\nKey generation completed.");
 
