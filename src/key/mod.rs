@@ -50,10 +50,10 @@ pub trait SSHWireFormatter<K: Key> {
         let raw_fingerprint = Self::get_raw_sha256_fingerprint(verifying_key);
         let mut fingerprint_buffer = [0u8; (32usize.div_ceil(3) * 4) - 1];
         STANDARD_NO_PAD
-            .encode_slice(&raw_fingerprint, &mut fingerprint_buffer)
+            .encode_slice(raw_fingerprint, &mut fingerprint_buffer)
             .unwrap();
 
-        fingerprint.push_str(&unsafe { str::from_utf8_unchecked(&fingerprint_buffer) });
+        fingerprint.push_str(unsafe { str::from_utf8_unchecked(&fingerprint_buffer) });
 
         fingerprint
     }
@@ -64,10 +64,10 @@ pub trait SSHWireFormatter<K: Key> {
         let raw_fingerprint = Self::get_raw_sha512_fingerprint(verifying_key);
         let mut fingerprint_buffer = [0u8; (64usize.div_ceil(3) * 4) - 1];
         STANDARD_NO_PAD
-            .encode_slice(&raw_fingerprint, &mut fingerprint_buffer)
+            .encode_slice(raw_fingerprint, &mut fingerprint_buffer)
             .unwrap();
 
-        fingerprint.push_str(&unsafe { str::from_utf8_unchecked(&fingerprint_buffer) });
+        fingerprint.push_str(unsafe { str::from_utf8_unchecked(&fingerprint_buffer) });
 
         fingerprint
     }
