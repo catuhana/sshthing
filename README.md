@@ -1,7 +1,7 @@
 # sshthing
 
 > [!IMPORTANT]
-> The *optimisations* in the [src/key.rs](src/key.rs) are written by Claude Sonnet 4.
+> The *optimisations* in the [`ByteSearch` and `SearchEngine`](src/key/mod.rs) are written by Claude Sonnet 4.
 
 Mass-generate Ed25519 SSH keys until a word is found in its fields (private/public key, fingerprints, etc.).
 
