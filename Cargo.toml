@@ -24,6 +24,9 @@ windows = { version = "0.61.3", features = [
   "Win32_System_Threading",
 ] }
 
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+sha2 = { version = "0.10.9", features = ["asm"] }
+
 [patch.crates-io]
 smallstr = { git = "https://github.com/catuhana/smallstr" }
 
