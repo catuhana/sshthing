@@ -1,3 +1,6 @@
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
+
 use std::io::Write as _;
 
 use clap::Parser as _;
@@ -9,6 +12,9 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use crate::errors::SshThingError;
 use crate::keep_awake::KeepAwake as _;
+use crate::key::OpenSSHFormatter;
+use crate::key::SSHWireFormatter;
+use crate::key::ed25519::Ed25519Key;
 
 mod cli;
 mod errors;
@@ -49,19 +55,15 @@ fn main() -> Result<(), SshThingError> {
     if let Some(ref mut ka) = keep_awake {
         ka.prevent_sleep()?;
     }
-
     let generated_keys_counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let (key_tx, key_rx) = std::sync::mpsc::channel::<key::Ed25519Key>();
+    let (key_tx, key_rx) = std::sync::mpsc::channel::<key::ed25519::Ed25519Key>();
 
     let generator_handles: Vec<_> = (0..cli.threads)
         .map(|index| {
             let handle_counter = std::sync::Arc::clone(&generated_keys_counter);
             let handle_key_tx = key_tx.clone();
 
-            let keywords = cli.keywords.clone();
-            let search_fields = search_fields.clone();
-            let search_all_keywords = cli.requires_all_keywords();
-            let search_all_fields = cli.requires_all_fields();
+            let search_engine = cli.search_engine();
 
             std::thread::Builder::new()
                 .name(format!("generator-{index}"))
@@ -69,16 +71,12 @@ fn main() -> Result<(), SshThingError> {
                     let mut thread_rng = ChaCha12Rng::from_os_rng();
 
                     loop {
-                        let generated_key =
-                            key::Ed25519Key::new_from_secret_key(thread_rng.random::<[u8; 32]>());
+                        let generated_key = key::ed25519::Ed25519Key::new_from_secret_key(
+                            &thread_rng.random::<[u8; 32]>(),
+                        );
                         handle_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-                        if generated_key.matches_search(
-                            &keywords,
-                            &search_fields,
-                            search_all_keywords,
-                            search_all_fields,
-                        ) {
+                        if search_engine.search_matches(&generated_key) {
                             let _ = handle_key_tx.send(generated_key);
                             break;
                         }
@@ -87,28 +85,23 @@ fn main() -> Result<(), SshThingError> {
         })
         .collect();
 
-    // Drop the original sender so only the generator threads hold senders
     drop(key_tx);
 
-    // Status reporting loop integrated into main thread
     let mut last_count = 0;
     let mut last_instant = std::time::Instant::now();
     let start_instant = last_instant;
 
     let found_key = loop {
-        // Try to receive a key with a timeout for status updates
         match key_rx.recv_timeout(std::time::Duration::from_millis(300)) {
             Ok(found_key) => {
-                // Key found! Break out of the loop
                 break Some(found_key);
             }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                // All generator threads finished without finding a key
                 break None;
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                // No key yet, update status and continue
-                let current_count = generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed);
+                let current_count =
+                    generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed);
                 let current_instant = std::time::Instant::now();
 
                 let elapsed = current_instant.duration_since(last_instant).as_secs_f64();
@@ -137,16 +130,24 @@ fn main() -> Result<(), SshThingError> {
 
         println!(
             "SHA256 fingerprint: {}",
-            found_key.generate_sha256_fingerprint()
+            Ed25519Key::get_sha256_fingerprint(&found_key.verifying_key)
         );
         println!(
             "SHA512 fingerprint: {}",
-            found_key.generate_sha512_fingerprint()
+            Ed25519Key::get_sha512_fingerprint(&found_key.verifying_key)
         );
 
         std::fs::create_dir_all("generated")?;
-        found_key.write_openssh_public(&mut std::fs::File::create("generated/id_ed25519.pub")?)?;
-        found_key.write_openssh_private(&mut std::fs::File::create("generated/id_ed25519")?)?;
+        std::fs::write(
+            "generated/id_ed25519.pub",
+            Ed25519Key::format_public_key(&found_key.verifying_key),
+        )?;
+        std::fs::write(
+            "generated/id_ed25519",
+            Ed25519Key::format_private_key(&found_key.signing_key, &found_key.verifying_key),
+        )?;
+        // found_key.write_openssh_public(&mut std::fs::File::create("generated/id_ed25519.pub")?)?;
+        // found_key.write_openssh_private(&mut std::fs::File::create("generated/id_ed25519")?)?;
 
         println!("Saved private and public keys to 'generated' directory.");
     } else {

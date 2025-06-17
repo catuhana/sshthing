@@ -1,3 +1,8 @@
+use smallstr::SmallString;
+use smallvec::{SmallVec, smallvec};
+
+use crate::key::SearchEngine;
+
 #[derive(clap::Parser, Debug)]
 pub struct Cli {
     /// The keywords to search for in SSH fields
@@ -50,23 +55,35 @@ pub enum SearchField {
 }
 
 impl Cli {
-    pub fn search_fields(&self) -> Vec<SearchField> {
+    pub fn search_engine(&self) -> SearchEngine {
+        SearchEngine::new(
+            self.keywords
+                .iter()
+                .map(|s| SmallString::from(s.as_str()))
+                .collect(),
+            self.search_fields(),
+            self.all_keywords,
+            self.all_fields,
+        )
+    }
+
+    pub fn search_fields(&self) -> SmallVec<[SearchField; 4]> {
         if self.all {
-            vec![
+            smallvec![
                 SearchField::PrivateKey,
                 SearchField::PublicKey,
                 SearchField::Sha256Fingerprint,
                 SearchField::Sha512Fingerprint,
             ]
         } else if self.keys_only {
-            vec![SearchField::PrivateKey, SearchField::PublicKey]
+            smallvec![SearchField::PrivateKey, SearchField::PublicKey]
         } else if self.fingerprints_only {
-            vec![
+            smallvec![
                 SearchField::Sha256Fingerprint,
                 SearchField::Sha512Fingerprint,
             ]
         } else {
-            self.fields.clone()
+            self.fields.clone().into()
         }
     }
 
