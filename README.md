@@ -28,6 +28,9 @@ per second.
 
 ### Using Cargo
 
+> [!NOTE]
+> Nightly toolchain is required to build sshthing.
+
 ```
 cargo install --git https://github.com/catuhana/sshthing
 ```
