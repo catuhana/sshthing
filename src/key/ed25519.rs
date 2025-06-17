@@ -132,9 +132,6 @@ impl OpenSSHFormatter<Self> for Ed25519Key {
         let mut private_key = SmallString::new_const();
         let mut private_key_buffer = SmallVec::<[u8; Self::OPENSSH_PRIVATE_KEY_BINARY_SIZE]>::new();
 
-        dbg!(private_key_buffer.len());
-        dbg!(private_key_buffer.capacity());
-
         private_key.push_str(Self::OPENSSH_PEM_HEADER);
 
         Self::write_private_key_header_section(&mut private_key_buffer)
