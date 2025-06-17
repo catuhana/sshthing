@@ -1,9 +1,7 @@
 use crate::errors::KeepAwakeError;
 
-pub trait KeepAwake {
-    fn new(reason: &str) -> Result<Self, KeepAwakeError>
-    where
-        Self: Sized;
+pub trait KeepAwake: Sized {
+    fn new(reason: &str) -> Result<Self, KeepAwakeError>;
 
     fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError>;
     fn allow_sleep(&mut self) -> Result<(), KeepAwakeError>;
@@ -93,7 +91,7 @@ mod windows {
                         SimpleReasonString: PWSTR(reason_wide.as_mut_ptr()),
                     },
                 };
-                let handle = Win32::System::Power::PowerCreateRequest(&context)
+                let handle = Win32::System::Power::PowerCreateRequest(&raw const context)
                     .map_err(KeepAwakeError::WindowsApi)?;
 
                 Ok(Self {
