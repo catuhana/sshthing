@@ -5,24 +5,7 @@
 
 Mass-generate Ed25519 SSH keys until a word is found in its fields (private/public key, fingerprints, etc.).
 
-## *Benchmark*
-
-> [!TIP]
-> I would be grateful if you've contributed your benchmarks here!
-> 1. Close some *heavy* apps running in the background. Apps like Discord, or your browser and etc. is fine.
-> 2. Run with `hello,this,is,averylongtext,withsomanyargumentsicanttakeitanymomre --all --all-keywords --all-fields` inputs
-> 3. Let it run for around 2-5 minutes
-> 4. Add the average keys/s below in the same format
-
-On average, generates
-
-- 282_070 keys on an Intel i5-1240p
-- 490_000 keys on an AMD Ryzen 5 7600
-- 426_466 keys on an Apple Silicon M2
-- ~~200_000 keys on an Apple Silicon M1 Max~~ (outdated, pending to update)
-- ~~560_000 keys on an Apple Silicon M4 Max~~ (outdated, pending to update)
-
-per second.
+## [Benchmark](BENCHMARK.md)
 
 ## Install
 
