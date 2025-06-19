@@ -118,77 +118,83 @@ pub trait OpenSSHFormatter<K: Key> {
 
 pub struct SearchEngine {
     keywords: SmallVec<[SmallString<[u8; 6]>; 8]>,
-    search_fields: SmallVec<[SearchField; 4]>,
+    sorted_search_fields: SmallVec<[SearchField; 4]>,
     all_keywords: bool,
     all_fields: bool,
 }
 
 impl SearchEngine {
-    pub const fn new(
+    pub fn new(
         keywords: SmallVec<[SmallString<[u8; 6]>; 8]>,
-        search_fields: SmallVec<[SearchField; 4]>,
+        mut search_fields: SmallVec<[SearchField; 4]>,
         all_keywords: bool,
         all_fields: bool,
     ) -> Self {
+        search_fields.sort_unstable_by_key(|field| Self::field_priority(field));
+
         Self {
             keywords,
-            search_fields,
+            sorted_search_fields: search_fields,
             all_keywords,
             all_fields,
         }
     }
 
     pub fn search_matches(&self, key: &key::ed25519::Ed25519Key) -> bool {
-        let mut sorted_fields = self.search_fields.iter().collect::<SmallVec<[_; 4]>>();
-        sorted_fields.sort_unstable_by_key(|field| Self::field_priority(field));
-
-        let mut field_match_count = 0;
-        for field in &sorted_fields {
-            let field_matches = self.search_field(field, key);
-
-            if field_matches {
-                field_match_count += 1;
-                if !self.all_fields {
-                    return true;
-                }
-            } else if self.all_fields {
-                return false;
-            }
+        if self.keywords.is_empty() {
+            return true;
         }
 
         if self.all_fields {
-            field_match_count == sorted_fields.len()
+            self.sorted_search_fields
+                .iter()
+                .all(|field| self.search_field(field, key))
         } else {
-            field_match_count > 0
+            self.sorted_search_fields
+                .iter()
+                .any(|field| self.search_field(field, key))
         }
     }
 
     fn search_field(&self, field: &SearchField, key: &key::ed25519::Ed25519Key) -> bool {
         match field {
-            SearchField::PrivateKey => ByteSearch::large_keyword_search(
-                key::ed25519::Ed25519Key::format_private_key(
+            SearchField::Sha256Fingerprint => {
+                let fingerprint =
+                    key::ed25519::Ed25519Key::get_sha256_fingerprint(key.verifying_key());
+                ByteSearch::fast_keyword_search(
+                    fingerprint.as_bytes(),
+                    &self.keywords,
+                    self.all_keywords,
+                )
+            }
+            SearchField::PublicKey => {
+                let public_key = key::ed25519::Ed25519Key::format_public_key(key.verifying_key());
+                ByteSearch::fast_keyword_search(
+                    public_key.as_bytes(),
+                    &self.keywords,
+                    self.all_keywords,
+                )
+            }
+            SearchField::Sha512Fingerprint => {
+                let fingerprint =
+                    key::ed25519::Ed25519Key::get_sha512_fingerprint(key.verifying_key());
+                ByteSearch::fast_keyword_search(
+                    fingerprint.as_bytes(),
+                    &self.keywords,
+                    self.all_keywords,
+                )
+            }
+            SearchField::PrivateKey => {
+                let private_key = key::ed25519::Ed25519Key::format_private_key(
                     key.signing_key(),
                     key.verifying_key(),
+                );
+                ByteSearch::large_keyword_search(
+                    private_key.as_bytes(),
+                    &self.keywords,
+                    self.all_keywords,
                 )
-                .as_bytes(),
-                &self.keywords,
-                self.all_keywords,
-            ),
-            SearchField::PublicKey => ByteSearch::fast_keyword_search(
-                key::ed25519::Ed25519Key::format_public_key(key.verifying_key()).as_bytes(),
-                &self.keywords,
-                self.all_keywords,
-            ),
-            SearchField::Sha256Fingerprint => ByteSearch::fast_keyword_search(
-                key::ed25519::Ed25519Key::get_sha256_fingerprint(key.verifying_key()).as_bytes(),
-                &self.keywords,
-                self.all_keywords,
-            ),
-            SearchField::Sha512Fingerprint => ByteSearch::fast_keyword_search(
-                key::ed25519::Ed25519Key::get_sha512_fingerprint(key.verifying_key()).as_bytes(),
-                &self.keywords,
-                self.all_keywords,
-            ),
+            }
         }
     }
 
