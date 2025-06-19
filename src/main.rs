@@ -55,15 +55,18 @@ fn main() -> Result<(), SshThingError> {
     if let Some(ref mut ka) = keep_awake {
         ka.prevent_sleep()?;
     }
+
     let generated_keys_counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
     let (key_tx, key_rx) = std::sync::mpsc::channel::<key::ed25519::Ed25519Key>();
+
+    let search_engine = std::sync::Arc::new(cli.search_engine());
 
     let generator_handles: Vec<_> = (0..cli.threads)
         .map(|index| {
             let handle_counter = std::sync::Arc::clone(&generated_keys_counter);
             let handle_key_tx = key_tx.clone();
 
-            let search_engine = cli.search_engine();
+            let search_engine = std::sync::Arc::clone(&search_engine);
 
             std::thread::Builder::new()
                 .name(format!("generator-{index}"))
