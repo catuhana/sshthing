@@ -122,10 +122,10 @@ mod windows {
     impl Drop for PowerRequest {
         fn drop(&mut self) {
             if self.sleep_active {
-                let _ = self.allow_sleep();
+                self.allow_sleep();
 
                 unsafe {
-                    let _ = CloseHandle(self.handle);
+                    CloseHandle(self.handle).expect("Failed to close power request handle");
                 }
             }
         }

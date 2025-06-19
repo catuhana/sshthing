@@ -132,7 +132,7 @@ impl SearchEngine {
         all_keywords: bool,
         all_fields: bool,
     ) -> Self {
-        search_fields.sort_unstable_by_key(|field| Self::field_priority(field));
+        search_fields.sort_unstable_by_key(Self::field_priority);
 
         Self {
             keywords,
