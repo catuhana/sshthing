@@ -61,7 +61,7 @@ fn main() -> Result<(), SshThingError> {
 
     let search_engine = std::sync::Arc::new(cli.search_engine());
 
-    let generator_handles: Vec<_> = (0..cli.threads)
+    let _ = (0..cli.threads)
         .map(|index| {
             let handle_counter = std::sync::Arc::clone(&generated_keys_counter);
             let handle_key_tx = key_tx.clone();
@@ -88,7 +88,7 @@ fn main() -> Result<(), SshThingError> {
                     }
                 })
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     drop(key_tx);
 
@@ -160,10 +160,6 @@ fn main() -> Result<(), SshThingError> {
             "\n\nNo matching key found after generating {} keys.",
             generated_keys_counter.load(std::sync::atomic::Ordering::Relaxed)
         );
-    }
-
-    for generator in generator_handles {
-        let _ = generator?.join();
     }
 
     println!("\nKey generation completed.");
