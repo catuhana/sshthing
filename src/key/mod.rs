@@ -45,6 +45,7 @@ pub trait SSHWireFormatter<K: Key> {
         verifying_key: &K::VerifyingKey,
     ) -> SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]>;
 
+    #[inline]
     fn get_sha256_fingerprint(verifying_key: &K::VerifyingKey) -> SmallString<[u8; 43]> {
         let mut fingerprint = SmallString::new_const();
 
@@ -59,6 +60,7 @@ pub trait SSHWireFormatter<K: Key> {
         fingerprint
     }
 
+    #[inline]
     fn get_sha512_fingerprint(verifying_key: &K::VerifyingKey) -> SmallString<[u8; 87]> {
         let mut fingerprint = SmallString::new_const();
 
@@ -140,6 +142,7 @@ impl SearchEngine {
         }
     }
 
+    #[inline]
     pub fn search_matches(&self, key: &key::ed25519::Ed25519Key) -> bool {
         if self.keywords.is_empty() {
             return true;
@@ -156,6 +159,7 @@ impl SearchEngine {
         }
     }
 
+    #[inline]
     fn search_field(&self, field: &SearchField, key: &key::ed25519::Ed25519Key) -> bool {
         match field {
             SearchField::Sha256Fingerprint => {
@@ -198,6 +202,7 @@ impl SearchEngine {
         }
     }
 
+    #[inline]
     const fn field_priority(field: &SearchField) -> usize {
         match field {
             SearchField::Sha256Fingerprint => 0,
@@ -210,6 +215,7 @@ impl SearchEngine {
 
 pub struct ByteSearch;
 impl ByteSearch {
+    #[inline]
     pub fn fast_keyword_search(
         bytes: &[u8],
         keywords: &[SmallString<[u8; 6]>],
@@ -240,6 +246,7 @@ impl ByteSearch {
         }
     }
 
+    #[inline]
     pub fn large_keyword_search(
         bytes: &[u8],
         keywords: &[SmallString<[u8; 6]>],
@@ -273,6 +280,7 @@ impl ByteSearch {
         }
     }
 
+    #[inline]
     fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
         match needle.len() {
             0 => true,
@@ -282,6 +290,7 @@ impl ByteSearch {
         }
     }
 
+    #[inline]
     fn aho_corasick_search(bytes: &[u8], keywords: &[SmallString<[u8; 6]>]) -> bool {
         let patterns = keywords
             .iter()

@@ -51,6 +51,7 @@ impl Ed25519Key {
         Self::OPENSSH_PRIVATE_SECTION_CONTENT_SIZE
             + (8 - (Self::OPENSSH_PRIVATE_SECTION_CONTENT_SIZE % 8)) % 8;
 
+    #[inline]
     pub fn new_from_secret_key(secret_key: &[u8; 32]) -> Self {
         let signing_key = SigningKey::from(secret_key);
         let verifying_key = signing_key.verifying_key();
@@ -71,10 +72,12 @@ impl Key for Ed25519Key {
     const PUBLIC_KEY_SIZE: usize = 32;
     const PRIVATE_KEY_SIZE: usize = 32;
 
+    #[inline]
     fn signing_key(&self) -> &SigningKey {
         &self.signing_key
     }
 
+    #[inline]
     fn verifying_key(&self) -> &VerifyingKey {
         &self.verifying_key
     }
@@ -84,6 +87,7 @@ impl SSHWireFormatter<Self> for Ed25519Key {
     const PUBLIC_KEY_WIRE_SIZE: usize =
         4 + Self::SSH_KEY_ALGORITHM_NAME.len() + 4 + Self::PUBLIC_KEY_SIZE;
 
+    #[inline]
     fn generate_public_key_wire(
         verifying_key: &<Self as Key>::VerifyingKey,
     ) -> SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]> {
@@ -98,10 +102,12 @@ impl SSHWireFormatter<Self> for Ed25519Key {
         wire
     }
 
+    #[inline]
     fn get_raw_sha256_fingerprint(verifying_key: &<Self as Key>::VerifyingKey) -> [u8; 32] {
         Sha256::digest(Self::generate_public_key_wire(verifying_key)).into()
     }
 
+    #[inline]
     fn get_raw_sha512_fingerprint(verifying_key: &<Self as Key>::VerifyingKey) -> [u8; 64] {
         Sha512::digest(Self::generate_public_key_wire(verifying_key)).into()
     }
