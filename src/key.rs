@@ -249,6 +249,7 @@ impl Ed25519 {
 pub struct SearchEngine {
     keywords: SmallVec<[SmallString<[u8; 6]>; 8]>,
     sorted_search_fields: SmallVec<[SearchField; 4]>,
+    aho_corasick: Option<AhoCorasick>,
     all_keywords: bool,
     all_fields: bool,
 }
@@ -262,9 +263,22 @@ impl SearchEngine {
     ) -> Self {
         search_fields.sort_unstable_by_key(Self::field_priority);
 
+        let aho_corasick = if keywords.len() > 3 && !all_keywords {
+            AhoCorasick::new(
+                &keywords
+                    .iter()
+                    .map(|k| k.as_bytes())
+                    .collect::<SmallVec<[&[u8]; 8]>>(),
+            )
+            .ok()
+        } else {
+            None
+        };
+
         Self {
             keywords,
             sorted_search_fields: search_fields,
+            aho_corasick,
             all_keywords,
             all_fields,
         }
@@ -273,6 +287,10 @@ impl SearchEngine {
     pub fn search_matches(&self, key: &Ed25519) -> bool {
         if self.keywords.is_empty() {
             return true;
+        }
+
+        if self.sorted_search_fields.len() == 1 {
+            return self.search_field(&self.sorted_search_fields[0], key);
         }
 
         if self.all_fields {
@@ -303,11 +321,17 @@ impl SearchEngine {
                 &self.keywords,
                 self.all_keywords,
             ),
-            SearchField::PrivateKey => ByteSearch::large_keyword_search(
-                key.private_key_openssh.as_bytes(),
-                &self.keywords,
-                self.all_keywords,
-            ),
+            SearchField::PrivateKey => {
+                if let Some(ref ac) = self.aho_corasick {
+                    ac.find(key.private_key_openssh.as_bytes()).is_some()
+                } else {
+                    ByteSearch::large_keyword_search(
+                        key.private_key_openssh.as_bytes(),
+                        &self.keywords,
+                        self.all_keywords,
+                    )
+                }
+            }
         }
     }
 
@@ -338,6 +362,7 @@ impl ByteSearch {
 
         let mut sorted_keywords: SmallVec<[&[u8]; 8]> =
             keywords.iter().map(|k| k.as_bytes()).collect();
+
         if all_keywords {
             sorted_keywords.sort_unstable_by_key(|k| k.len());
 
@@ -370,26 +395,26 @@ impl ByteSearch {
             return Self::aho_corasick_search(bytes, keywords);
         }
 
-        let mut sorted_keywords: SmallVec<[&[u8]; 8]> =
-            keywords.iter().map(|k| k.as_bytes()).collect();
-
-        if all_keywords {
-            sorted_keywords.sort_unstable_by_key(|k| k.len());
-            sorted_keywords
-                .iter()
-                .all(|&keyword| Self::contains_bytes(bytes, keyword))
-        } else {
-            sorted_keywords.sort_unstable_by_key(|k| std::cmp::Reverse(k.len()));
-            sorted_keywords
-                .iter()
-                .any(|&keyword| Self::contains_bytes(bytes, keyword))
-        }
+        Self::fast_keyword_search(bytes, keywords, all_keywords)
     }
 
     fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
         match needle.len() {
             0 => true,
-            1 => memchr::memchr(needle[0], haystack).is_some(),
+            1 => {
+                let byte = needle[0];
+                haystack.iter().any(|&b| b == byte)
+            }
+            2 => {
+                let [b1, b2] = [needle[0], needle[1]];
+                haystack.windows(2).any(|w| w[0] == b1 && w[1] == b2)
+            }
+            3 => {
+                let [b1, b2, b3] = [needle[0], needle[1], needle[2]];
+                haystack
+                    .windows(3)
+                    .any(|w| w[0] == b1 && w[1] == b2 && w[2] == b3)
+            }
             _ if needle.len() > haystack.len() => false,
             _ => memchr::memmem::find(haystack, needle).is_some(),
         }
