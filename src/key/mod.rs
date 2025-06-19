@@ -44,7 +44,7 @@ pub trait SSHWireFormatter<K: Key> {
         verifying_key: &K::VerifyingKey,
     ) -> SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]>;
 
-    fn get_sha256_fingerprint(verifying_key: &K::VerifyingKey) -> SmallString<[u8; 32]> {
+    fn get_sha256_fingerprint(verifying_key: &K::VerifyingKey) -> SmallString<[u8; 43]> {
         let mut fingerprint = SmallString::new_const();
 
         let raw_fingerprint = Self::get_raw_sha256_fingerprint(verifying_key);
@@ -58,7 +58,7 @@ pub trait SSHWireFormatter<K: Key> {
         fingerprint
     }
 
-    fn get_sha512_fingerprint(verifying_key: &K::VerifyingKey) -> SmallString<[u8; 64]> {
+    fn get_sha512_fingerprint(verifying_key: &K::VerifyingKey) -> SmallString<[u8; 87]> {
         let mut fingerprint = SmallString::new_const();
 
         let raw_fingerprint = Self::get_raw_sha512_fingerprint(verifying_key);
