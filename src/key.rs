@@ -93,6 +93,8 @@ impl Ed25519 {
     ) -> SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]> {
         let mut wire = SmallVec::new_const();
 
+        wire.reserve_exact(Self::PUBLIC_KEY_WIRE_SIZE);
+
         wire.extend_from_slice(&(Self::SSH_KEY_ALGORITHM_NAME.len() as u32).to_be_bytes());
         wire.extend_from_slice(Self::SSH_KEY_ALGORITHM_NAME.as_bytes());
 
@@ -108,7 +110,7 @@ impl Ed25519 {
         let mut fingerprint = SmallString::new_const();
 
         let raw_fingerprint = Sha256::digest(public_key_wire);
-        let mut fingerprint_buffer = [0u8; (32usize.div_ceil(3) * 4) - 1];
+        let mut fingerprint_buffer = [0u8; 43];
         STANDARD_NO_PAD
             .encode_slice(raw_fingerprint, &mut fingerprint_buffer)
             .unwrap();
@@ -123,7 +125,7 @@ impl Ed25519 {
         let mut fingerprint = SmallString::new_const();
 
         let raw_fingerprint = Sha512::digest(public_key_wire);
-        let mut fingerprint_buffer = [0u8; (64usize.div_ceil(3) * 4) - 1];
+        let mut fingerprint_buffer = [0u8; 87];
         STANDARD_NO_PAD
             .encode_slice(raw_fingerprint, &mut fingerprint_buffer)
             .unwrap();
