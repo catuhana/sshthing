@@ -69,11 +69,13 @@ fn main() -> Result<(), SshThingError> {
                 .name(format!("generator-{index}"))
                 .spawn(move || {
                     let mut thread_rng = ChaCha12Rng::from_os_rng();
+                    let mut secret_key_buffer = [0u8; 32];
 
                     loop {
-                        let generated_key = key::ed25519::Ed25519Key::new_from_secret_key(
-                            &thread_rng.random::<[u8; 32]>(),
-                        );
+                        thread_rng.fill(&mut secret_key_buffer);
+                        let generated_key =
+                            key::ed25519::Ed25519Key::new_from_secret_key(&secret_key_buffer);
+
                         handle_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
                         if search_engine.search_matches(&generated_key) {
