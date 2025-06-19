@@ -1,3 +1,4 @@
+use aho_corasick::AhoCorasick;
 use base64::{Engine, engine::general_purpose::STANDARD_NO_PAD};
 use smallstr::SmallString;
 use smallvec::SmallVec;
@@ -212,14 +213,24 @@ impl ByteSearch {
             return true;
         }
 
+        if keywords.len() == 1 {
+            return Self::contains_bytes(bytes, keywords[0].as_bytes());
+        }
+
+        let mut sorted_keywords: SmallVec<[&[u8]; 8]> =
+            keywords.iter().map(|k| k.as_bytes()).collect();
         if all_keywords {
-            keywords
+            sorted_keywords.sort_unstable_by_key(|k| k.len());
+
+            sorted_keywords
                 .iter()
-                .all(|keyword| Self::contains_bytes(bytes, keyword.as_bytes()))
+                .all(|&keyword| Self::contains_bytes(bytes, keyword))
         } else {
-            keywords
+            sorted_keywords.sort_unstable_by_key(|k| std::cmp::Reverse(k.len()));
+
+            sorted_keywords
                 .iter()
-                .any(|keyword| Self::contains_bytes(bytes, keyword.as_bytes()))
+                .any(|&keyword| Self::contains_bytes(bytes, keyword))
         }
     }
 
@@ -228,33 +239,50 @@ impl ByteSearch {
         keywords: &[SmallString<[u8; 6]>],
         all_keywords: bool,
     ) -> bool {
-        let mut keywords = keywords.iter().collect::<SmallVec<[_; 8]>>();
-        keywords.sort_unstable_by_key(|k| k.len());
+        if keywords.is_empty() {
+            return true;
+        }
+
+        if keywords.len() == 1 {
+            return Self::contains_bytes(bytes, keywords[0].as_bytes());
+        }
+
+        if keywords.len() > 3 && !all_keywords {
+            return Self::aho_corasick_search(bytes, keywords);
+        }
+
+        let mut sorted_keywords: SmallVec<[&[u8]; 8]> =
+            keywords.iter().map(|k| k.as_bytes()).collect();
 
         if all_keywords {
-            keywords
+            sorted_keywords.sort_unstable_by_key(|k| k.len());
+            sorted_keywords
                 .iter()
-                .all(|keyword| Self::contains_bytes(bytes, keyword.as_bytes()))
+                .all(|&keyword| Self::contains_bytes(bytes, keyword))
         } else {
-            keywords
+            sorted_keywords.sort_unstable_by_key(|k| std::cmp::Reverse(k.len()));
+            sorted_keywords
                 .iter()
-                .any(|keyword| Self::contains_bytes(bytes, keyword.as_bytes()))
+                .any(|&keyword| Self::contains_bytes(bytes, keyword))
         }
     }
 
     fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
-        if needle.is_empty() {
-            return true;
+        match needle.len() {
+            0 => true,
+            1 => memchr::memchr(needle[0], haystack).is_some(),
+            _ if needle.len() > haystack.len() => false,
+            _ => memchr::memmem::find(haystack, needle).is_some(),
         }
+    }
 
-        if needle.len() > haystack.len() {
-            return false;
-        }
+    fn aho_corasick_search(bytes: &[u8], keywords: &[SmallString<[u8; 6]>]) -> bool {
+        let patterns = keywords
+            .iter()
+            .map(|k| k.as_bytes())
+            .collect::<SmallVec<[&[u8]; 8]>>();
+        let ac = AhoCorasick::new(&patterns).unwrap();
 
-        if needle.len() == 1 {
-            return memchr::memchr(needle[0], haystack).is_some();
-        }
-
-        memchr::memmem::find(haystack, needle).is_some()
+        ac.find(bytes).is_some()
     }
 }
