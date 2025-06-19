@@ -21,7 +21,7 @@ impl KeepAwake for SystemKeepAwake {
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn new(_reason: &str) -> Result<Self, KeepAwakeError> {
+    fn new(_reason: &str) -> Self {
         Self { inner: () }
     }
 
