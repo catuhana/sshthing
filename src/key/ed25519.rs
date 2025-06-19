@@ -113,6 +113,10 @@ impl SSHWireFormatter<Self> for Ed25519Key {
     }
 }
 
+// FIXME: Make this cache the generated stuff
+// as using the same functions again will generate
+// different `check_int` values, which gives different
+// private keys each time.
 impl OpenSSHFormatter<Self> for Ed25519Key {
     const OPENSSH_PUBLIC_KEY_SIZE: usize = Self::OPENSSH_PUBLIC_KEY_SIZE;
     const OPENSSH_PRIVATE_KEY_SIZE: usize = Self::OPENSSH_PRIVATE_KEY_SIZE;
@@ -200,9 +204,10 @@ impl OpenSSHFormatter<Self> for Ed25519Key {
     ) -> std::io::Result<()> {
         writer.write_all(&(Self::OPENSSH_PRIVATE_KEY_PRIVATE_SECTION_SIZE as u32).to_be_bytes())?;
 
-        let check_int = rand::random::<u32>();
-        writer.write_all(&check_int.to_be_bytes())?;
-        writer.write_all(&check_int.to_be_bytes())?;
+        let mut check_int_buffer = [0u8; 4];
+        rand::fill(&mut check_int_buffer[..]);
+        writer.write_all(&check_int_buffer)?;
+        writer.write_all(&check_int_buffer)?;
 
         writer.write_all(&(Self::SSH_KEY_ALGORITHM_NAME.len() as u32).to_be_bytes())?;
         writer.write_all(Self::SSH_KEY_ALGORITHM_NAME.as_bytes())?;
