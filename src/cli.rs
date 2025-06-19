@@ -3,6 +3,8 @@ use smallvec::{SmallVec, smallvec};
 
 use crate::key::SearchEngine;
 
+// TODO: Allow passing comment and password since
+// when they are changed, private key is *regenerated*.
 #[derive(clap::Parser, Debug)]
 pub struct Cli {
     /// The keywords to search for in SSH fields
