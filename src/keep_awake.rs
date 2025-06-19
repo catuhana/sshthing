@@ -1,10 +1,8 @@
-use crate::errors::KeepAwakeError;
-
 pub trait KeepAwake: Sized {
-    fn new(reason: &str) -> Result<Self, KeepAwakeError>;
+    fn new(reason: &str) -> Self;
 
-    fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError>;
-    fn allow_sleep(&mut self) -> Result<(), KeepAwakeError>;
+    fn prevent_sleep(&mut self) -> ();
+    fn allow_sleep(&mut self) -> ();
 }
 
 pub struct SystemKeepAwake {
@@ -16,42 +14,36 @@ pub struct SystemKeepAwake {
 
 impl KeepAwake for SystemKeepAwake {
     #[cfg(target_os = "windows")]
-    fn new(reason: &str) -> Result<Self, KeepAwakeError> {
-        let inner = Some(windows::PowerRequest::new(reason)?);
-
-        Ok(Self { inner })
+    fn new(reason: &str) -> Self {
+        Self {
+            inner: Some(windows::PowerRequest::new(reason)),
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn new(_reason: &str) -> Result<Self, KeepAwakeError> {
-        Ok(Self { inner: () })
+    fn new(_reason: &str) -> Self {
+        Self { inner: () }
     }
 
     #[cfg(target_os = "windows")]
-    fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError> {
+    fn prevent_sleep(&mut self) {
         if let Some(inner) = &mut self.inner {
-            inner.prevent_sleep()?;
+            inner.prevent_sleep();
         }
-        Ok(())
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError> {
-        Ok(())
-    }
+    fn prevent_sleep(&mut self) {}
 
     #[cfg(target_os = "windows")]
-    fn allow_sleep(&mut self) -> Result<(), KeepAwakeError> {
+    fn allow_sleep(&mut self) -> () {
         if let Some(inner) = &mut self.inner {
-            inner.allow_sleep()?;
+            inner.allow_sleep();
         }
-        Ok(())
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn allow_sleep(&mut self) -> Result<(), KeepAwakeError> {
-        Ok(())
-    }
+    fn allow_sleep(&mut self) -> () {}
 }
 
 #[cfg(target_os = "windows")]
@@ -71,7 +63,6 @@ mod windows {
         core::PWSTR,
     };
 
-    use crate::errors::KeepAwakeError;
     use crate::keep_awake::KeepAwake;
 
     pub struct PowerRequest {
@@ -80,7 +71,7 @@ mod windows {
     }
 
     impl KeepAwake for PowerRequest {
-        fn new(reason: &str) -> Result<Self, KeepAwakeError> {
+        fn new(reason: &str) -> Self {
             unsafe {
                 let mut reason_wide: Vec<u16> =
                     reason.encode_utf16().chain(std::iter::once(0)).collect();
@@ -92,43 +83,39 @@ mod windows {
                     },
                 };
                 let handle = Win32::System::Power::PowerCreateRequest(&raw const context)
-                    .map_err(KeepAwakeError::WindowsApi)?;
+                    .expect("Failed to create power request");
 
-                Ok(Self {
+                Self {
                     handle,
                     sleep_active: false,
-                })
+                }
             }
         }
 
-        fn prevent_sleep(&mut self) -> Result<(), KeepAwakeError> {
+        fn prevent_sleep(&mut self) -> () {
             if !self.sleep_active {
                 unsafe {
                     Win32::System::Power::PowerSetRequest(
                         self.handle,
                         PowerRequestExecutionRequired,
                     )
-                    .map_err(KeepAwakeError::WindowsApi)?;
+                    .expect("Failed to set power request");
                 }
                 self.sleep_active = true;
             }
-
-            Ok(())
         }
 
-        fn allow_sleep(&mut self) -> Result<(), KeepAwakeError> {
+        fn allow_sleep(&mut self) -> () {
             if self.sleep_active {
                 unsafe {
                     Win32::System::Power::PowerClearRequest(
                         self.handle,
                         PowerRequestExecutionRequired,
                     )
-                    .map_err(KeepAwakeError::WindowsApi)?;
+                    .expect("Failed to clear power request");
                 }
                 self.sleep_active = false;
             }
-
-            Ok(())
         }
     }
 

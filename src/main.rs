@@ -10,15 +10,13 @@ use rand_chacha::ChaCha12Rng;
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use crate::errors::SshThingError;
 use crate::keep_awake::KeepAwake as _;
 
 mod cli;
-mod errors;
 mod keep_awake;
 mod key;
 
-fn main() -> Result<(), SshThingError> {
+fn main() {
     let cli = cli::Cli::parse();
 
     let search_fields = cli.search_fields();
@@ -47,10 +45,10 @@ fn main() -> Result<(), SshThingError> {
     } else {
         Some(keep_awake::SystemKeepAwake::new(
             "sshthing is generating keys",
-        )?)
+        ))
     };
     if let Some(ref mut ka) = keep_awake {
-        ka.prevent_sleep()?;
+        ka.prevent_sleep();
     }
 
     let generated_keys_counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
@@ -138,9 +136,11 @@ fn main() -> Result<(), SshThingError> {
             found_key.public_key_fingerprint_sha512
         );
 
-        std::fs::create_dir_all("generated")?;
-        std::fs::write("generated/id_ed25519.pub", found_key.public_key_openssh)?;
-        std::fs::write("generated/id_ed25519", found_key.private_key_openssh)?;
+        std::fs::create_dir_all("generated").expect("Failed to create 'generated' directory");
+        std::fs::write("generated/id_ed25519.pub", found_key.public_key_openssh)
+            .expect("Failed to write public key");
+        std::fs::write("generated/id_ed25519", found_key.private_key_openssh)
+            .expect("Failed to write private key");
 
         println!("Saved private and public keys to 'generated' directory.");
     } else {
@@ -151,10 +151,8 @@ fn main() -> Result<(), SshThingError> {
     }
 
     for generator in generator_handles {
-        let _ = generator?.join();
+        let _ = generator.expect("Could not build generator").join();
     }
 
     println!("\nKey generation completed.");
-
-    Ok(())
 }

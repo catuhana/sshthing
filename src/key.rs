@@ -15,16 +15,13 @@ pub struct Ed25519 {
 }
 
 impl Ed25519 {
-    // Key constants
     pub const SSH_KEY_ALGORITHM_NAME: &'static str = "ssh-ed25519";
     pub const PUBLIC_KEY_SIZE: usize = 32;
     pub const PRIVATE_KEY_SIZE: usize = 32;
 
-    // Wire format constants
     pub const PUBLIC_KEY_WIRE_SIZE: usize =
         4 + Self::SSH_KEY_ALGORITHM_NAME.len() + 4 + Self::PUBLIC_KEY_SIZE;
 
-    // OpenSSH format constants
     pub const OPENSSH_PRIVATE_KEY_MAGIC: &'static str = "openssh-key-v1\0";
     pub const OPENSSH_CIPHER_NAME: &'static str = "none";
     pub const OPENSSH_KDF_NAME: &'static str = "none";
