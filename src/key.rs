@@ -212,10 +212,14 @@ impl Ed25519 {
     ) -> std::io::Result<()> {
         writer.write_all(&(Self::OPENSSH_PRIVATE_KEY_PRIVATE_SECTION_SIZE as u32).to_be_bytes())?;
 
-        let mut check_int_buffer = [0u8; 4];
-        rand::fill(&mut check_int_buffer[..]);
-        writer.write_all(&check_int_buffer)?;
-        writer.write_all(&check_int_buffer)?;
+        let check_int = [
+            signing_key.as_bytes()[7],
+            signing_key.as_bytes()[13],
+            signing_key.as_bytes()[23],
+            signing_key.as_bytes()[31],
+        ];
+        writer.write_all(&check_int)?;
+        writer.write_all(&check_int)?;
 
         writer.write_all(&(Self::SSH_KEY_ALGORITHM_NAME.len() as u32).to_be_bytes())?;
         writer.write_all(Self::SSH_KEY_ALGORITHM_NAME.as_bytes())?;
