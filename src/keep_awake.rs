@@ -36,14 +36,14 @@ impl KeepAwake for SystemKeepAwake {
     fn prevent_sleep(&mut self) {}
 
     #[cfg(target_os = "windows")]
-    fn allow_sleep(&mut self) -> () {
+    fn allow_sleep(&mut self) {
         if let Some(inner) = &mut self.inner {
             inner.allow_sleep();
         }
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn allow_sleep(&mut self) -> () {}
+    fn allow_sleep(&mut self) {}
 }
 
 #[cfg(target_os = "windows")]
@@ -92,7 +92,7 @@ mod windows {
             }
         }
 
-        fn prevent_sleep(&mut self) -> () {
+        fn prevent_sleep(&mut self) {
             if !self.sleep_active {
                 unsafe {
                     Win32::System::Power::PowerSetRequest(
@@ -105,7 +105,7 @@ mod windows {
             }
         }
 
-        fn allow_sleep(&mut self) -> () {
+        fn allow_sleep(&mut self) {
             if self.sleep_active {
                 unsafe {
                     Win32::System::Power::PowerClearRequest(
@@ -122,10 +122,10 @@ mod windows {
     impl Drop for PowerRequest {
         fn drop(&mut self) {
             if self.sleep_active {
-                let _ = self.allow_sleep();
+                self.allow_sleep();
 
                 unsafe {
-                    let _ = CloseHandle(self.handle);
+                    CloseHandle(self.handle).expect("Failed to close power request handle");
                 }
             }
         }

@@ -103,7 +103,7 @@ impl Ed25519 {
     }
 
     pub fn get_sha256_fingerprint(
-        public_key_wire: &SmallVec<[u8; Ed25519::PUBLIC_KEY_WIRE_SIZE]>,
+        public_key_wire: &SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]>,
     ) -> SmallString<[u8; 43]> {
         let mut fingerprint = SmallString::new_const();
 
@@ -118,7 +118,7 @@ impl Ed25519 {
     }
 
     pub fn get_sha512_fingerprint(
-        public_key_wire: &SmallVec<[u8; Ed25519::PUBLIC_KEY_WIRE_SIZE]>,
+        public_key_wire: &SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]>,
     ) -> SmallString<[u8; 87]> {
         let mut fingerprint = SmallString::new_const();
 
@@ -133,7 +133,7 @@ impl Ed25519 {
     }
 
     pub fn format_public_key(
-        public_key_wire: &SmallVec<[u8; Ed25519::PUBLIC_KEY_WIRE_SIZE]>,
+        public_key_wire: &SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]>,
     ) -> SmallString<[u8; Self::OPENSSH_PUBLIC_KEY_SIZE]> {
         let mut public_key = SmallString::new_const();
 
@@ -149,7 +149,7 @@ impl Ed25519 {
     pub fn format_private_key(
         signing_key: &SigningKey,
         verifying_key: &VerifyingKey,
-        public_key_wire: &SmallVec<[u8; Ed25519::PUBLIC_KEY_WIRE_SIZE]>,
+        public_key_wire: &SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]>,
     ) -> SmallString<[u8; Self::OPENSSH_PRIVATE_KEY_SIZE]> {
         let mut private_key = SmallString::new_const();
         let mut private_key_buffer = SmallVec::<[u8; Self::OPENSSH_PRIVATE_KEY_BINARY_SIZE]>::new();
@@ -158,7 +158,7 @@ impl Ed25519 {
 
         Self::write_private_key_header_section(&mut private_key_buffer)
             .expect("Failed to write OpenSSH private key header section");
-        Self::write_private_key_public_key_section(&public_key_wire, &mut private_key_buffer)
+        Self::write_private_key_public_key_section(public_key_wire, &mut private_key_buffer)
             .expect("Failed to write OpenSSH private key public key section");
         Self::write_private_key_private_key_section(
             signing_key,
@@ -196,11 +196,11 @@ impl Ed25519 {
     }
 
     fn write_private_key_public_key_section<W: std::io::Write>(
-        public_key_wire: &SmallVec<[u8; Ed25519::PUBLIC_KEY_WIRE_SIZE]>,
+        public_key_wire: &SmallVec<[u8; Self::PUBLIC_KEY_WIRE_SIZE]>,
         writer: &mut W,
     ) -> std::io::Result<()> {
         writer.write_all(&(public_key_wire.len() as u32).to_be_bytes())?;
-        writer.write_all(&public_key_wire)?;
+        writer.write_all(public_key_wire)?;
 
         Ok(())
     }
@@ -254,7 +254,7 @@ impl SearchEngine {
         all_keywords: bool,
         all_fields: bool,
     ) -> Self {
-        search_fields.sort_unstable_by_key(|field| Self::field_priority(field));
+        search_fields.sort_unstable_by_key(Self::field_priority);
 
         Self {
             keywords,
