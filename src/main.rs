@@ -12,9 +12,6 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use crate::errors::SshThingError;
 use crate::keep_awake::KeepAwake as _;
-use crate::key::OpenSSHFormatter;
-use crate::key::SSHWireFormatter;
-use crate::key::ed25519::Ed25519Key;
 
 mod cli;
 mod errors;
@@ -57,7 +54,7 @@ fn main() -> Result<(), SshThingError> {
     }
 
     let generated_keys_counter = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let (key_tx, key_rx) = std::sync::mpsc::channel::<key::ed25519::Ed25519Key>();
+    let (key_tx, key_rx) = std::sync::mpsc::channel::<key::Ed25519>();
 
     let search_engine = std::sync::Arc::new(cli.search_engine());
 
@@ -76,8 +73,7 @@ fn main() -> Result<(), SshThingError> {
 
                     loop {
                         thread_rng.fill(&mut secret_key_buffer);
-                        let generated_key =
-                            key::ed25519::Ed25519Key::new_from_secret_key(&secret_key_buffer);
+                        let generated_key = key::Ed25519::new_from_secret_key(&secret_key_buffer);
 
                         handle_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
@@ -135,24 +131,16 @@ fn main() -> Result<(), SshThingError> {
 
         println!(
             "SHA256 fingerprint: {}",
-            Ed25519Key::get_sha256_fingerprint(&found_key.verifying_key)
+            found_key.public_key_fingerprint_sha256
         );
         println!(
             "SHA512 fingerprint: {}",
-            Ed25519Key::get_sha512_fingerprint(&found_key.verifying_key)
+            found_key.public_key_fingerprint_sha512
         );
 
         std::fs::create_dir_all("generated")?;
-        std::fs::write(
-            "generated/id_ed25519.pub",
-            Ed25519Key::format_public_key(&found_key.verifying_key),
-        )?;
-        std::fs::write(
-            "generated/id_ed25519",
-            Ed25519Key::format_private_key(&found_key.signing_key, &found_key.verifying_key),
-        )?;
-        // found_key.write_openssh_public(&mut std::fs::File::create("generated/id_ed25519.pub")?)?;
-        // found_key.write_openssh_private(&mut std::fs::File::create("generated/id_ed25519")?)?;
+        std::fs::write("generated/id_ed25519.pub", found_key.public_key_openssh)?;
+        std::fs::write("generated/id_ed25519", found_key.private_key_openssh)?;
 
         println!("Saved private and public keys to 'generated' directory.");
     } else {
